@@ -7,6 +7,7 @@ import java.time.LocalDateTime;
 
 public record BookingResponse(
         Long id,
+        Long accountId,
         String username,
         Long assetId,
         String assetName,
@@ -20,6 +21,7 @@ public record BookingResponse(
     public static BookingResponse from(Booking booking) {
         return new BookingResponse(
                 booking.getId(),
+                booking.getAccount().getId(),
                 booking.getAccount().getUsername(),
                 booking.getAsset().getId(),
                 booking.getAsset().getName(),

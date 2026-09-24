@@ -22,6 +22,10 @@ public class BookingController {
         this.bookingService = bookingService;
     }
 
+    // =========================================================
+    // USER - CREATE BOOKING
+    // =========================================================
+
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
     public BookingResponse create(
@@ -30,19 +34,37 @@ public class BookingController {
 
         return bookingService.create(
                 authentication.getName(),
-                request);
+                request
+        );
     }
+
+    // =========================================================
+    // USER - VIEW OWN BOOKINGS
+    // =========================================================
 
     @GetMapping("/my")
     public Page<BookingResponse> myBookings(
             Authentication authentication,
-            @RequestParam(required = false) BookingState state,
-            @RequestParam(required = false) BigDecimal minPrice,
-            @RequestParam(required = false) BigDecimal maxPrice,
-            @RequestParam(defaultValue = "0") int page,
-            @RequestParam(defaultValue = "10") int size,
-            @RequestParam(defaultValue = "createdAt") String sortBy,
-            @RequestParam(defaultValue = "desc") String direction) {
+            @RequestParam(required = false)
+            BookingState state,
+
+            @RequestParam(required = false)
+            BigDecimal minPrice,
+
+            @RequestParam(required = false)
+            BigDecimal maxPrice,
+
+            @RequestParam(defaultValue = "0")
+            int page,
+
+            @RequestParam(defaultValue = "10")
+            int size,
+
+            @RequestParam(defaultValue = "createdAt")
+            String sortBy,
+
+            @RequestParam(defaultValue = "desc")
+            String direction) {
 
         return bookingService.mine(
                 authentication.getName(),
@@ -52,8 +74,13 @@ public class BookingController {
                 page,
                 size,
                 sortBy,
-                direction);
+                direction
+        );
     }
+
+    // =========================================================
+    // USER - VIEW OWN BOOKING
+    // =========================================================
 
     @GetMapping("/{id}")
     public BookingResponse getOwn(
@@ -62,6 +89,7 @@ public class BookingController {
 
         return bookingService.findOwn(
                 id,
-                authentication.getName());
+                authentication.getName()
+        );
     }
 }

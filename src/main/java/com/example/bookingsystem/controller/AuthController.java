@@ -38,7 +38,9 @@ public class AuthController {
         Account account =
                 accountRepository
                         .findByUsername(request.username())
-                        .orElseThrow();
+                        .orElseThrow(() ->
+                                new IllegalStateException(
+                                        "Authenticated account no longer exists"));
 
         String token =
                 tokenService.create(

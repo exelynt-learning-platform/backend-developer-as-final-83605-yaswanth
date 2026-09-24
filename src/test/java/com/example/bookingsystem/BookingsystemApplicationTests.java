@@ -146,8 +146,8 @@ class BookingsystemApplicationTests {
 										MediaType.APPLICATION_JSON)
 								.content("""
                                         {
-                                           "username": "test-user",
-                                           "password": "User@123"
+                                            "username": "test-user",
+                                            "password": "User@123"
                                         }
                                         """))
 				.andExpect(status().isOk())
@@ -168,8 +168,8 @@ class BookingsystemApplicationTests {
 										MediaType.APPLICATION_JSON)
 								.content("""
                                         {
-                                           "username": "test-admin",
-                                           "password": "Admin@123"
+                                            "username": "test-admin",
+                                            "password": "Admin@123"
                                         }
                                         """))
 				.andExpect(status().isOk())
@@ -190,8 +190,8 @@ class BookingsystemApplicationTests {
 										MediaType.APPLICATION_JSON)
 								.content("""
                                         {
-                                           "username": "test-user",
-                                           "password": "WrongPassword"
+                                            "username": "test-user",
+                                            "password": "WrongPassword"
                                         }
                                         """))
 				.andExpect(status().isUnauthorized());
@@ -207,6 +207,25 @@ class BookingsystemApplicationTests {
 
 		mockMvc.perform(
 						get("/api/assets"))
+				.andExpect(status().isUnauthorized());
+	}
+
+	@Test
+	void tamperedJwtIsRejected()
+			throws Exception {
+
+		String token =
+				login("test-user", "User@123");
+
+		String tamperedToken =
+				token.substring(0, token.length() - 1)
+						+ (token.endsWith("a") ? "b" : "a");
+
+		mockMvc.perform(
+						get("/api/assets")
+								.header(
+										"Authorization",
+										"Bearer " + tamperedToken))
 				.andExpect(status().isUnauthorized());
 	}
 
@@ -241,11 +260,11 @@ class BookingsystemApplicationTests {
 										MediaType.APPLICATION_JSON)
 								.content("""
                                         {
-                                           "name": "Restricted Room",
-                                           "category": "ROOM",
-                                           "description": "Should not be created by USER",
-                                           "price": 1000.00,
-                                           "available": true
+                                            "name": "Restricted Room",
+                                            "category": "ROOM",
+                                            "description": "Should not be created by USER",
+                                            "price": 1000.00,
+                                            "available": true
                                         }
                                         """))
 				.andExpect(status().isForbidden());
@@ -267,11 +286,11 @@ class BookingsystemApplicationTests {
 										MediaType.APPLICATION_JSON)
 								.content("""
                                         {
-                                           "name": "Admin Room",
-                                           "category": "ROOM",
-                                           "description": "Created by admin",
-                                           "price": 1200.00,
-                                           "available": true
+                                            "name": "Admin Room",
+                                            "category": "ROOM",
+                                            "description": "Created by admin",
+                                            "price": 1200.00,
+                                            "available": true
                                         }
                                         """))
 				.andExpect(status().isCreated())
@@ -299,9 +318,9 @@ class BookingsystemApplicationTests {
 										MediaType.APPLICATION_JSON)
 								.content("""
                                         {
-                                           "assetId": %d,
-                                           "startAt": "2027-01-10T10:00:00",
-                                           "endAt": "2027-01-10T12:00:00"
+                                            "assetId": %d,
+                                            "startAt": "2027-01-10T10:00:00",
+                                            "endAt": "2027-01-10T12:00:00"
                                         }
                                         """.formatted(testAssetId)))
 				.andExpect(status().isCreated())
@@ -327,9 +346,9 @@ class BookingsystemApplicationTests {
 										MediaType.APPLICATION_JSON)
 								.content("""
                                         {
-                                           "assetId": %d,
-                                           "startAt": "2027-02-10T10:00:00",
-                                           "endAt": "2027-02-10T12:00:00"
+                                            "assetId": %d,
+                                            "startAt": "2027-02-10T10:00:00",
+                                            "endAt": "2027-02-10T12:00:00"
                                         }
                                         """.formatted(testAssetId)))
 				.andExpect(status().isCreated());
@@ -370,9 +389,9 @@ class BookingsystemApplicationTests {
 												MediaType.APPLICATION_JSON)
 										.content("""
                                                 {
-                                                   "assetId": %d,
-                                                   "startAt": "2027-05-10T10:00:00",
-                                                   "endAt": "2027-05-10T12:00:00"
+                                                    "assetId": %d,
+                                                    "startAt": "2027-05-10T10:00:00",
+                                                    "endAt": "2027-05-10T12:00:00"
                                                 }
                                                 """.formatted(testAssetId)))
 						.andExpect(status().isCreated())
@@ -436,11 +455,11 @@ class BookingsystemApplicationTests {
 										MediaType.APPLICATION_JSON)
 								.content("""
                                         {
-                                           "accountId": %d,
-                                           "assetId": %d,
-                                           "startAt": "2027-06-10T10:00:00",
-                                           "endAt": "2027-06-10T12:00:00",
-                                           "state": "CONFIRMED"
+                                            "accountId": %d,
+                                            "assetId": %d,
+                                            "startAt": "2027-06-10T10:00:00",
+                                            "endAt": "2027-06-10T12:00:00",
+                                            "state": "CONFIRMED"
                                         }
                                         """.formatted(
 										userId,
@@ -472,9 +491,9 @@ class BookingsystemApplicationTests {
 												MediaType.APPLICATION_JSON)
 										.content("""
                                                 {
-                                                   "assetId": %d,
-                                                   "startAt": "2027-07-10T10:00:00",
-                                                   "endAt": "2027-07-10T12:00:00"
+                                                    "assetId": %d,
+                                                    "startAt": "2027-07-10T10:00:00",
+                                                    "endAt": "2027-07-10T12:00:00"
                                                 }
                                                 """.formatted(testAssetId)))
 						.andExpect(status().isCreated())
@@ -500,11 +519,11 @@ class BookingsystemApplicationTests {
 										MediaType.APPLICATION_JSON)
 								.content("""
                                         {
-                                           "accountId": %d,
-                                           "assetId": %d,
-                                           "startAt": "2027-07-10T13:00:00",
-                                           "endAt": "2027-07-10T15:00:00",
-                                           "state": "CONFIRMED"
+                                            "accountId": %d,
+                                            "assetId": %d,
+                                            "startAt": "2027-07-10T13:00:00",
+                                            "endAt": "2027-07-10T15:00:00",
+                                            "state": "CONFIRMED"
                                         }
                                         """.formatted(
 										userId,
@@ -534,9 +553,9 @@ class BookingsystemApplicationTests {
 												MediaType.APPLICATION_JSON)
 										.content("""
                                                 {
-                                                   "assetId": %d,
-                                                   "startAt": "2027-08-10T10:00:00",
-                                                   "endAt": "2027-08-10T12:00:00"
+                                                    "assetId": %d,
+                                                    "startAt": "2027-08-10T10:00:00",
+                                                    "endAt": "2027-08-10T12:00:00"
                                                 }
                                                 """.formatted(testAssetId)))
 						.andExpect(status().isCreated())
@@ -558,12 +577,144 @@ class BookingsystemApplicationTests {
 										MediaType.APPLICATION_JSON)
 								.content("""
                                         {
-                                           "state": "CONFIRMED"
+                                            "state": "CONFIRMED"
                                         }
                                         """))
 				.andExpect(status().isOk())
 				.andExpect(jsonPath("$.state")
 						.value("CONFIRMED"));
+	}
+
+	@Test
+	void cancelledBookingCannotBeConfirmedAgain()
+			throws Exception {
+
+		String adminToken =
+				login("test-admin", "Admin@123");
+
+		String userToken =
+				login("test-user", "User@123");
+
+		String response =
+				mockMvc.perform(
+								post("/api/bookings")
+										.header(
+												"Authorization",
+												"Bearer " + userToken)
+										.contentType(
+												MediaType.APPLICATION_JSON)
+										.content("""
+                                                {
+                                                    "assetId": %d,
+                                                    "startAt": "2027-11-10T10:00:00",
+                                                    "endAt": "2027-11-10T12:00:00"
+                                                }
+                                                """.formatted(testAssetId)))
+						.andExpect(status().isCreated())
+						.andReturn()
+						.getResponse()
+						.getContentAsString();
+
+		long bookingId =
+				extractLong(response, "id");
+
+		mockMvc.perform(
+						patch("/api/admin/bookings/"
+								+ bookingId
+								+ "/state")
+								.header(
+										"Authorization",
+										"Bearer " + adminToken)
+								.contentType(
+										MediaType.APPLICATION_JSON)
+								.content("""
+                                        {
+                                            "state": "CANCELLED"
+                                        }
+                                        """))
+				.andExpect(status().isOk())
+				.andExpect(jsonPath("$.state")
+						.value("CANCELLED"));
+
+		mockMvc.perform(
+						patch("/api/admin/bookings/"
+								+ bookingId
+								+ "/state")
+								.header(
+										"Authorization",
+										"Bearer " + adminToken)
+								.contentType(
+										MediaType.APPLICATION_JSON)
+								.content("""
+                                        {
+                                            "state": "CONFIRMED"
+                                        }
+                                        """))
+				.andExpect(status().isBadRequest());
+	}
+
+	@Test
+	void cancelledBookingDoesNotBlockNewBooking()
+			throws Exception {
+
+		String userToken =
+				login("test-user", "User@123");
+
+		String adminToken =
+				login("test-admin", "Admin@123");
+
+		String bookingJson = """
+                {
+                    "assetId": %d,
+                    "startAt": "2027-12-10T10:00:00",
+                    "endAt": "2027-12-10T12:00:00"
+                }
+                """.formatted(testAssetId);
+
+		String response =
+				mockMvc.perform(
+								post("/api/bookings")
+										.header(
+												"Authorization",
+												"Bearer " + userToken)
+										.contentType(
+												MediaType.APPLICATION_JSON)
+										.content(bookingJson))
+						.andExpect(status().isCreated())
+						.andReturn()
+						.getResponse()
+						.getContentAsString();
+
+		long bookingId =
+				extractLong(response, "id");
+
+		mockMvc.perform(
+						patch("/api/admin/bookings/"
+								+ bookingId
+								+ "/state")
+								.header(
+										"Authorization",
+										"Bearer " + adminToken)
+								.contentType(
+										MediaType.APPLICATION_JSON)
+								.content("""
+                                        {
+                                            "state": "CANCELLED"
+                                        }
+                                        """))
+				.andExpect(status().isOk());
+
+		mockMvc.perform(
+						post("/api/bookings")
+								.header(
+										"Authorization",
+										"Bearer " + userToken)
+								.contentType(
+										MediaType.APPLICATION_JSON)
+								.content(bookingJson))
+				.andExpect(status().isCreated())
+				.andExpect(jsonPath("$.state")
+						.value("PENDING"));
 	}
 
 	@Test
@@ -586,9 +737,9 @@ class BookingsystemApplicationTests {
 												MediaType.APPLICATION_JSON)
 										.content("""
                                                 {
-                                                   "assetId": %d,
-                                                   "startAt": "2027-09-10T10:00:00",
-                                                   "endAt": "2027-09-10T12:00:00"
+                                                    "assetId": %d,
+                                                    "startAt": "2027-09-10T10:00:00",
+                                                    "endAt": "2027-09-10T12:00:00"
                                                 }
                                                 """.formatted(testAssetId)))
 						.andExpect(status().isCreated())
@@ -655,9 +806,9 @@ class BookingsystemApplicationTests {
 										MediaType.APPLICATION_JSON)
 								.content("""
                                         {
-                                           "assetId": %d,
-                                           "startAt": "2027-03-10T12:00:00",
-                                           "endAt": "2027-03-10T10:00:00"
+                                            "assetId": %d,
+                                            "startAt": "2027-03-10T12:00:00",
+                                            "endAt": "2027-03-10T10:00:00"
                                         }
                                         """.formatted(testAssetId)))
 				.andExpect(status().isBadRequest());
@@ -679,12 +830,29 @@ class BookingsystemApplicationTests {
 										MediaType.APPLICATION_JSON)
 								.content("""
                                         {
-                                           "assetId": 999999,
-                                           "startAt": "2027-10-10T10:00:00",
-                                           "endAt": "2027-10-10T12:00:00"
+                                            "assetId": 999999,
+                                            "startAt": "2027-10-10T10:00:00",
+                                            "endAt": "2027-10-10T12:00:00"
                                         }
                                         """))
 				.andExpect(status().isNotFound());
+	}
+
+	@Test
+	void invalidPriceRangeIsRejected()
+			throws Exception {
+
+		String token =
+				login("test-user", "User@123");
+
+		mockMvc.perform(
+						get("/api/assets")
+								.param("minPrice", "1000")
+								.param("maxPrice", "500")
+								.header(
+										"Authorization",
+										"Bearer " + token))
+				.andExpect(status().isBadRequest());
 	}
 
 	// =========================================================
@@ -700,9 +868,9 @@ class BookingsystemApplicationTests {
 
 		String booking = """
                 {
-                   "assetId": %d,
-                   "startAt": "2027-04-10T10:00:00",
-                   "endAt": "2027-04-10T12:00:00"
+                    "assetId": %d,
+                    "startAt": "2027-04-10T10:00:00",
+                    "endAt": "2027-04-10T12:00:00"
                 }
                 """.formatted(testAssetId);
 
@@ -726,6 +894,7 @@ class BookingsystemApplicationTests {
 								.content(booking))
 				.andExpect(status().isConflict());
 	}
+
 	// =========================================================
 	// FILTERING / PAGINATION / SORTING
 	// =========================================================
@@ -810,8 +979,8 @@ class BookingsystemApplicationTests {
 												MediaType.APPLICATION_JSON)
 										.content("""
                                                 {
-                                                   "username": "%s",
-                                                   "password": "%s"
+                                                    "username": "%s",
+                                                    "password": "%s"
                                                 }
                                                 """.formatted(
 												username,
@@ -843,6 +1012,7 @@ class BookingsystemApplicationTests {
 			String field) {
 
 		try {
+
 			JsonNode json =
 					objectMapper.readTree(response);
 

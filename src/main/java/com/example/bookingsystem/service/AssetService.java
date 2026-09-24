@@ -28,10 +28,22 @@ public class AssetService {
             String sortBy,
             String direction) {
 
-        Pageable pageable = createPageable(page, size, sortBy, direction);
+        validatePriceRange(minPrice, maxPrice);
+
+        Pageable pageable =
+                createPageable(
+                        page,
+                        size,
+                        sortBy,
+                        direction);
 
         return assetRepository
-                .search(minPrice, maxPrice, category, available, pageable)
+                .search(
+                        minPrice,
+                        maxPrice,
+                        category,
+                        available,
+                        pageable)
                 .map(AssetResponse::from);
     }
 
@@ -66,6 +78,7 @@ public class AssetService {
     }
 
     private Asset getAsset(Long id) {
+
         return assetRepository.findById(id)
                 .orElseThrow(() ->
                         new NotFoundException(
@@ -83,6 +96,19 @@ public class AssetService {
         asset.setAvailable(request.available());
     }
 
+    private void validatePriceRange(
+            BigDecimal minPrice,
+            BigDecimal maxPrice) {
+
+        if (minPrice != null
+                && maxPrice != null
+                && minPrice.compareTo(maxPrice) > 0) {
+
+            throw new IllegalArgumentException(
+                    "minPrice cannot be greater than maxPrice");
+        }
+    }
+
     private Pageable createPageable(
             int page,
             int size,
@@ -90,6 +116,7 @@ public class AssetService {
             String direction) {
 
         if (page < 0 || size < 1 || size > 100) {
+
             throw new IllegalArgumentException(
                     "Invalid page or size");
         }
@@ -102,10 +129,14 @@ public class AssetService {
             default -> "id";
         };
 
-        Sort sort = "desc".equalsIgnoreCase(direction)
-                ? Sort.by(property).descending()
-                : Sort.by(property).ascending();
+        Sort sort =
+                "desc".equalsIgnoreCase(direction)
+                        ? Sort.by(property).descending()
+                        : Sort.by(property).ascending();
 
-        return PageRequest.of(page, size, sort);
+        return PageRequest.of(
+                page,
+                size,
+                sort);
     }
 }

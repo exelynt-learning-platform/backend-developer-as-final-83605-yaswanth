@@ -15,7 +15,7 @@ import java.util.Date;
 @Service
 public class JwtTokenService {
 
-    private static final int MINIMUM_SECRET_LENGTH = 32;
+    private static final int MINIMUM_SECRET_BYTES = 32;
 
     private final SecretKey signingKey;
     private final long lifetime;
@@ -24,13 +24,17 @@ public class JwtTokenService {
             @Value("${app.jwt.secret}") String secret,
             @Value("${app.jwt.expiration-ms}") long lifetime) {
 
-        if (secret == null ||
-                secret.getBytes(StandardCharsets.UTF_8).length
-                        < MINIMUM_SECRET_LENGTH) {
+        if (secret == null || secret.isBlank()) {
+            throw new IllegalArgumentException(
+                    "JWT secret must be configured");
+        }
 
+        byte[] secretBytes = secret.getBytes(StandardCharsets.UTF_8);
+
+        if (secretBytes.length < MINIMUM_SECRET_BYTES) {
             throw new IllegalArgumentException(
                     "JWT secret must contain at least "
-                            + MINIMUM_SECRET_LENGTH
+                            + MINIMUM_SECRET_BYTES
                             + " bytes");
         }
 
@@ -39,16 +43,11 @@ public class JwtTokenService {
                     "JWT expiration must be greater than zero");
         }
 
-        this.signingKey =
-                Keys.hmacShaKeyFor(
-                        secret.getBytes(StandardCharsets.UTF_8));
-
+        this.signingKey = Keys.hmacShaKeyFor(secretBytes);
         this.lifetime = lifetime;
     }
 
-    public String create(
-            String username,
-            String role) {
+    public String create(String username, String role) {
 
         Date issuedAt = new Date();
 
@@ -76,7 +75,6 @@ public class JwtTokenService {
     public boolean valid(String token) {
 
         try {
-
             parse(token);
             return true;
 

@@ -1,29 +1,41 @@
 package com.example.bookingsystem.config;
 
-import com.example.bookingsystem.security.JwtRequestFilter;
-import com.example.bookingsystem.service.AccountService;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import jakarta.servlet.http.HttpServletResponse;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
-import org.springframework.http.HttpMethod;
+import org.springframework.http.MediaType;
 import org.springframework.security.authentication.AuthenticationManager;
-import org.springframework.security.authentication.ProviderManager;
+import org.springframework.security.authentication.AuthenticationProvider;
 import org.springframework.security.authentication.dao.DaoAuthenticationProvider;
+import org.springframework.security.config.annotation.authentication.configuration.AuthenticationConfiguration;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
-import org.springframework.security.web.AuthenticationEntryPoint;
-import org.springframework.security.web.access.AccessDeniedHandler;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
+
+import com.example.bookingsystem.security.JwtRequestFilter;
+import com.example.bookingsystem.service.AccountService;
+
+import java.io.IOException;
+import java.time.LocalDateTime;
+import java.util.LinkedHashMap;
+import java.util.Map;
 
 @Configuration
 public class SecurityConfig {
 
     private final JwtRequestFilter jwtRequestFilter;
+    private final AccountService accountService;
 
-    public SecurityConfig(JwtRequestFilter jwtRequestFilter) {
+    public SecurityConfig(
+            JwtRequestFilter jwtRequestFilter,
+            AccountService accountService) {
+
         this.jwtRequestFilter = jwtRequestFilter;
+        this.accountService = accountService;
     }
 
     @Bean
@@ -32,8 +44,7 @@ public class SecurityConfig {
     }
 
     @Bean
-    public AuthenticationManager authenticationManager(
-            AccountService accountService,
+    public AuthenticationProvider authenticationProvider(
             PasswordEncoder passwordEncoder) {
 
         DaoAuthenticationProvider provider =
@@ -41,42 +52,15 @@ public class SecurityConfig {
 
         provider.setPasswordEncoder(passwordEncoder);
 
-        return new ProviderManager(provider);
+        return provider;
     }
 
-    /**
-     * Handles requests that do not contain valid authentication.
-     */
     @Bean
-    public AuthenticationEntryPoint authenticationEntryPoint() {
-        return (request, response, exception) -> {
+    public AuthenticationManager authenticationManager(
+            AuthenticationConfiguration configuration)
+            throws Exception {
 
-            response.setStatus(401);
-            response.setContentType("application/json");
-            response.setCharacterEncoding("UTF-8");
-
-            response.getWriter().write(
-                    "{\"status\":401,\"error\":\"Unauthorized\",\"message\":\"Authentication is required to access this resource\"}"
-            );
-        };
-    }
-
-    /**
-     * Handles authenticated users who do not have
-     * sufficient permissions for the requested resource.
-     */
-    @Bean
-    public AccessDeniedHandler accessDeniedHandler() {
-        return (request, response, exception) -> {
-
-            response.setStatus(403);
-            response.setContentType("application/json");
-            response.setCharacterEncoding("UTF-8");
-
-            response.getWriter().write(
-                    "{\"status\":403,\"error\":\"Forbidden\",\"message\":\"You do not have permission to access this resource\"}"
-            );
-        };
+        return configuration.getAuthenticationManager();
     }
 
     @Bean
@@ -84,122 +68,151 @@ public class SecurityConfig {
             HttpSecurity http) throws Exception {
 
         http
-
-                // JWT APIs are stateless, so CSRF protection is not required.
                 .csrf(csrf -> csrf.disable())
 
-                // Do not create or use HTTP sessions.
                 .sessionManagement(session ->
                         session.sessionCreationPolicy(
                                 SessionCreationPolicy.STATELESS))
 
-                // Custom 401 and 403 responses.
-                .exceptionHandling(exception -> exception
-                        .authenticationEntryPoint(
-                                authenticationEntryPoint())
-                        .accessDeniedHandler(
-                                accessDeniedHandler()))
+                .authenticationProvider(
+                        authenticationProvider(passwordEncoder()))
 
                 .authorizeHttpRequests(auth -> auth
 
-                        // =====================================================
-                        // PUBLIC ENDPOINTS
-                        // =====================================================
-
+                        // Authentication
                         .requestMatchers(
-                                "/auth/login",
+                                "/auth/login"
+                        ).permitAll()
+
+                        // Swagger / OpenAPI
+                        .requestMatchers(
                                 "/swagger-ui/**",
                                 "/swagger-ui.html",
                                 "/v3/api-docs/**"
-                        )
-                        .permitAll()
+                        ).permitAll()
 
-                        // =====================================================
-                        // RESOURCE ENDPOINTS
-                        // =====================================================
-
-                        // USER + ADMIN can view resources.
+                        // Public resource viewing
                         .requestMatchers(
-                                HttpMethod.GET,
+                                org.springframework.http.HttpMethod.GET,
                                 "/api/assets/**"
-                        )
-                        .hasAnyRole("USER", "ADMIN")
+                        ).hasAnyRole("USER", "ADMIN")
 
-                        // Only ADMIN can create resources.
+                        // ADMIN resource management
                         .requestMatchers(
-                                HttpMethod.POST,
+                                org.springframework.http.HttpMethod.POST,
                                 "/api/assets/**"
-                        )
-                        .hasRole("ADMIN")
+                        ).hasRole("ADMIN")
 
-                        // Only ADMIN can update resources.
                         .requestMatchers(
-                                HttpMethod.PUT,
+                                org.springframework.http.HttpMethod.PUT,
                                 "/api/assets/**"
-                        )
-                        .hasRole("ADMIN")
+                        ).hasRole("ADMIN")
 
-                        // Only ADMIN can delete resources.
                         .requestMatchers(
-                                HttpMethod.DELETE,
+                                org.springframework.http.HttpMethod.DELETE,
                                 "/api/assets/**"
-                        )
-                        .hasRole("ADMIN")
+                        ).hasRole("ADMIN")
 
-                        // =====================================================
-                        // USER BOOKING ENDPOINTS
-                        // =====================================================
-
-                        // USER can create their own booking.
-                        // The username comes from JWT authentication,
-                        // not from the request body.
+                        // USER booking creation
                         .requestMatchers(
-                                HttpMethod.POST,
+                                org.springframework.http.HttpMethod.POST,
                                 "/api/bookings"
-                        )
-                        .hasRole("USER")
+                        ).hasRole("USER")
 
-                        // USER can view only their own bookings.
+                        // USER own bookings
                         .requestMatchers(
-                                HttpMethod.GET,
+                                org.springframework.http.HttpMethod.GET,
                                 "/api/bookings/my"
-                        )
-                        .hasRole("USER")
+                        ).hasRole("USER")
 
-                        // USER can access an individual booking.
-                        // BookingService performs the ownership check.
                         .requestMatchers(
-                                HttpMethod.GET,
+                                org.springframework.http.HttpMethod.GET,
                                 "/api/bookings/*"
-                        )
-                        .hasRole("USER")
+                        ).hasRole("USER")
 
-                        // =====================================================
-                        // ADMIN BOOKING ENDPOINTS
-                        // =====================================================
-
-                        // ADMIN has full booking-management access.
+                        // ADMIN booking management
                         .requestMatchers(
                                 "/api/admin/bookings/**"
-                        )
-                        .hasRole("ADMIN")
+                        ).hasRole("ADMIN")
 
-                        // =====================================================
-                        // DEFAULT
-                        // =====================================================
-
-                        // Any endpoint not explicitly declared above
-                        // requires an authenticated user.
-                        .anyRequest()
-                        .authenticated()
+                        // Everything else requires authentication
+                        .anyRequest().authenticated()
                 )
 
-                // Read and validate JWT before Spring Security
-                // performs authorization.
+                .exceptionHandling(exception -> exception
+
+                        .authenticationEntryPoint(
+                                (request, response, authException) ->
+                                        ErrorResponseWriter.write(
+                                                response,
+                                                HttpServletResponse.SC_UNAUTHORIZED,
+                                                "Authentication required"
+                                        )
+                        )
+
+                        .accessDeniedHandler(
+                                (request, response, accessDeniedException) ->
+                                        ErrorResponseWriter.write(
+                                                response,
+                                                HttpServletResponse.SC_FORBIDDEN,
+                                                "Access denied"
+                                        )
+                        )
+                )
+
                 .addFilterBefore(
                         jwtRequestFilter,
-                        UsernamePasswordAuthenticationFilter.class);
+                        UsernamePasswordAuthenticationFilter.class
+                );
 
         return http.build();
+    }
+
+    /**
+     * Small reusable writer for Spring Security errors.
+     *
+     * This keeps the 401 and 403 responses consistent and avoids
+     * duplicating JSON response-writing code inside the security
+     * configuration.
+     */
+    static final class ErrorResponseWriter {
+
+        private static final ObjectMapper OBJECT_MAPPER =
+                new ObjectMapper();
+
+        private ErrorResponseWriter() {
+        }
+
+        static void write(
+                HttpServletResponse response,
+                int status,
+                String message) throws IOException {
+
+            response.setStatus(status);
+            response.setContentType(
+                    MediaType.APPLICATION_JSON_VALUE);
+
+            Map<String, Object> body =
+                    new LinkedHashMap<>();
+
+            body.put(
+                    "timestamp",
+                    LocalDateTime.now().toString()
+            );
+
+            body.put(
+                    "status",
+                    status
+            );
+
+            body.put(
+                    "message",
+                    message
+            );
+
+            response.getWriter().write(
+                    OBJECT_MAPPER.writeValueAsString(body)
+            );
+        }
     }
 }

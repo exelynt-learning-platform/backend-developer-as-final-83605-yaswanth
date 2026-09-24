@@ -31,13 +31,17 @@ public class Booking {
     private BigDecimal price;
 
     @Enumerated(EnumType.STRING)
-    @Column(nullable = false, length = 20)
+    @Column(nullable = false)
     private BookingState state;
 
-    @Column(nullable = false)
+    @Column(nullable = false, updatable = false)
     private LocalDateTime createdAt;
 
-    public Booking() {
+    @PrePersist
+    protected void onCreate() {
+        if (createdAt == null) {
+            createdAt = LocalDateTime.now();
+        }
     }
 
     public Long getId() {
@@ -48,55 +52,51 @@ public class Booking {
         return account;
     }
 
-    public Asset getAsset() {
-        return asset;
-    }
-
-    public LocalDateTime getStartAt() {
-        return startAt;
-    }
-
-    public LocalDateTime getEndAt() {
-        return endAt;
-    }
-
-    public BigDecimal getPrice() {
-        return price;
-    }
-
-    public BookingState getState() {
-        return state;
-    }
-
-    public LocalDateTime getCreatedAt() {
-        return createdAt;
-    }
-
     public void setAccount(Account account) {
         this.account = account;
+    }
+
+    public Asset getAsset() {
+        return asset;
     }
 
     public void setAsset(Asset asset) {
         this.asset = asset;
     }
 
+    public LocalDateTime getStartAt() {
+        return startAt;
+    }
+
     public void setStartAt(LocalDateTime startAt) {
         this.startAt = startAt;
+    }
+
+    public LocalDateTime getEndAt() {
+        return endAt;
     }
 
     public void setEndAt(LocalDateTime endAt) {
         this.endAt = endAt;
     }
 
+    public BigDecimal getPrice() {
+        return price;
+    }
+
     public void setPrice(BigDecimal price) {
         this.price = price;
+    }
+
+    public BookingState getState() {
+        return state;
     }
 
     public void setState(BookingState state) {
         this.state = state;
     }
 
-    public void setCreatedAt(LocalDateTime createdAt) {
-        this.createdAt = createdAt;
+    public LocalDateTime getCreatedAt() {
+        return createdAt;
     }
 }

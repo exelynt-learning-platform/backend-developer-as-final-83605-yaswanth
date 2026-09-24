@@ -19,7 +19,7 @@ The system allows users to view bookable resources and create/manage their own r
 - Users can view only their own bookings
 - Reservation ownership enforcement
 - Administrator booking management
-- Booking status management
+- Booking state management
 - Booking conflict detection
 - Booking status filtering
 - Booking price filtering
@@ -31,9 +31,9 @@ The system allows users to view bookable resources and create/manage their own r
 - PostgreSQL database
 - JPA/Hibernate ORM
 - Swagger/OpenAPI documentation
-- Seeded `ADMIN` and `USER` accounts
-- Docker and Docker Compose support
 - Environment-variable based configuration
+- Seeded development/demo accounts
+- Docker and Docker Compose support
 - Integration and security tests
 
 ---
@@ -54,6 +54,7 @@ The system allows users to view bookable resources and create/manage their own r
 | Docker Compose | Application and database orchestration |
 | Swagger / OpenAPI | API documentation |
 | JUnit 5 / Spring Boot Test | Automated testing |
+| H2 | In-memory database for tests |
 
 ---
 
@@ -148,6 +149,7 @@ src/
 │   │       │
 │   │       ├── exception/
 │   │       │   ├── ApiExceptionHandler.java
+│   │       │   ├── BookingConflictException.java
 │   │       │   └── NotFoundException.java
 │   │       │
 │   │       ├── repository/
@@ -180,9 +182,9 @@ src/
 
 ---
 
-## Domain Model
+# Domain Model
 
-### Account
+## Account
 
 Represents a system user.
 
@@ -202,7 +204,7 @@ USER
 ADMIN
 ```
 
-### Asset
+## Asset
 
 Represents a bookable resource.
 
@@ -221,7 +223,7 @@ Important fields:
 - `price`
 - `available`
 
-### Booking
+## Booking
 
 Represents a reservation made for an asset.
 
@@ -254,11 +256,11 @@ A booking belongs to one account and one asset.
 
 ---
 
-## Authentication
+# Authentication
 
 Authentication is provided through JWT.
 
-### Login
+## Login
 
 ```http
 POST /auth/login
@@ -270,7 +272,7 @@ Request:
 ```json
 {
   "username": "practice-user",
-  "password": "User@123"
+  "password": "<SEED_USER_PASSWORD>"
 }
 ```
 
@@ -296,9 +298,9 @@ The application uses a **stateless Spring Security configuration**, so server-si
 
 ---
 
-## Authorization
+# Authorization
 
-### USER permissions
+## USER permissions
 
 | Operation | Access |
 |---|---|
@@ -311,7 +313,7 @@ The application uses a **stateless Spring Security configuration**, so server-si
 | View another user's booking | No |
 | Manage all bookings | No |
 
-### ADMIN permissions
+## ADMIN permissions
 
 | Operation | Access |
 |---|---|
@@ -325,7 +327,7 @@ The application uses a **stateless Spring Security configuration**, so server-si
 | Change booking state | Yes |
 | Delete booking | Yes |
 
-### Ownership protection
+## Ownership protection
 
 For normal user booking creation, the account identity is **not accepted from the request body**.
 
@@ -333,13 +335,17 @@ Instead:
 
 ```text
 JWT
- ↓
+  |
+  v
 Authenticated username
- ↓
+  |
+  v
 BookingService
- ↓
+  |
+  v
 Account associated with JWT
- ↓
+  |
+  v
 Booking
 ```
 
@@ -448,6 +454,28 @@ Request:
 }
 ```
 
+### Booking state transitions
+
+The application enforces the following transitions:
+
+```text
+PENDING
+   |
+   +----> CONFIRMED
+   |
+   +----> CANCELLED
+
+CONFIRMED
+   |
+   +----> CANCELLED
+
+CANCELLED
+   |
+   +----> no further transition
+```
+
+The same state is also allowed.
+
 ---
 
 # Resource Filtering, Pagination and Sorting
@@ -465,13 +493,17 @@ Example:
 GET /api/assets?minPrice=500&maxPrice=2000&category=ROOM&available=true
 ```
 
-### Pagination
+If both prices are supplied, `minPrice` cannot be greater than `maxPrice`.
+
+## Pagination
 
 ```http
 GET /api/assets?page=0&size=10
 ```
 
-### Sorting
+The supported page size range is `1` to `100`.
+
+## Sorting
 
 ```http
 GET /api/assets?sortBy=price&direction=asc
@@ -494,7 +526,7 @@ Bookings support filtering by:
 - Minimum price
 - Maximum price
 
-### User booking filtering
+## User booking filtering
 
 ```http
 GET /api/bookings/my?state=PENDING
@@ -518,7 +550,22 @@ Pagination:
 GET /api/bookings/my?page=0&size=10
 ```
 
-### Admin booking filtering
+Sorting:
+
+```http
+GET /api/bookings/my?sortBy=price&direction=asc
+```
+
+Supported user booking sorting fields:
+
+- `id`
+- `startAt`
+- `endAt`
+- `price`
+- `createdAt`
+- `state`
+
+## Admin booking filtering
 
 ```http
 GET /api/admin/bookings?state=PENDING&minPrice=500&maxPrice=2000
@@ -553,11 +600,13 @@ The system prevents overlapping active reservations for the same resource.
 
 A new booking is rejected when its time range overlaps an existing non-cancelled booking for the same asset.
 
-The overlap condition is based on:
+The overlap condition is:
 
 ```text
 existing.startAt < requested.endAt
+
 AND
+
 existing.endAt > requested.startAt
 ```
 
@@ -578,6 +627,7 @@ Examples include:
 - Future booking start time
 - Valid booking time ranges
 - Valid pagination values
+- Valid price ranges
 
 The application uses centralized exception handling through:
 
@@ -592,6 +642,7 @@ Typical responses include:
 401 Unauthorized
 403 Forbidden
 404 Not Found
+409 Conflict
 ```
 
 ### Example unauthorized response
@@ -599,8 +650,7 @@ Typical responses include:
 ```json
 {
   "status": 401,
-  "error": "Unauthorized",
-  "message": "Authentication is required to access this resource"
+  "message": "Authentication required"
 }
 ```
 
@@ -609,9 +659,16 @@ Typical responses include:
 ```json
 {
   "status": 403,
-  "error": "Forbidden",
-  "message": "You do not have permission to access this resource"
+  "message": "Access denied"
 }
+```
+
+### Booking conflict
+
+An overlapping booking returns:
+
+```text
+409 Conflict
 ```
 
 ---
@@ -620,36 +677,53 @@ Typical responses include:
 
 The application uses PostgreSQL.
 
-Default local configuration:
+For local development, the default database connection values in `application.yaml` are:
 
 ```text
 Database: booking_system
 Username: postgres
-Password: postgres
 Host: localhost
 Port: 5432
 ```
 
+The database password should be supplied through the environment.
+
 The application supports environment variables so database and JWT configuration can be changed without modifying source code.
 
-Available application variables:
+Available application variables include:
 
 ```text
 DB_URL
 DB_USERNAME
 DB_PASSWORD
+
 JWT_SECRET
 JWT_EXPIRATION_MS
+
+SEED_ADMIN_USERNAME
+SEED_ADMIN_EMAIL
+SEED_ADMIN_PASSWORD
+
+SEED_USER_USERNAME
+SEED_USER_EMAIL
+SEED_USER_PASSWORD
+
+SEED_USER2_USERNAME
+SEED_USER2_EMAIL
+SEED_USER2_PASSWORD
+
 SERVER_PORT
 ```
 
-> For production use, replace the default development credentials and JWT secret with secure values.
+For production use, always provide secure database credentials and a cryptographically random JWT secret.
 
 ---
 
 # Environment Configuration
 
 Create a `.env` file for local/container configuration when needed.
+
+The repository contains `.env.example` as a template.
 
 Example:
 
@@ -662,13 +736,27 @@ DB_URL=jdbc:postgresql://postgres:5432/booking_system
 DB_USERNAME=postgres
 DB_PASSWORD=change-this-password
 
-JWT_SECRET=change-this-to-a-long-random-secret-key
+JWT_SECRET=
 JWT_EXPIRATION_MS=86400000
+
+SEED_ADMIN_USERNAME=practice-admin
+SEED_ADMIN_EMAIL=practice-admin@example.com
+SEED_ADMIN_PASSWORD=
+
+SEED_USER_USERNAME=practice-user
+SEED_USER_EMAIL=practice-user@example.com
+SEED_USER_PASSWORD=
+
+SEED_USER2_USERNAME=practice-user-2
+SEED_USER2_EMAIL=practice-user-2@example.com
+SEED_USER2_PASSWORD=
 
 SERVER_PORT=8080
 ```
 
-Do not commit real secrets, passwords, or production credentials to Git.
+Generate a strong random value for `JWT_SECRET`.
+
+Do not commit `.env` or real secrets, passwords, or production credentials to Git.
 
 ---
 
@@ -679,8 +767,10 @@ Do not commit real secrets, passwords, or production credentials to Git.
 Make sure the following are installed:
 
 - Java 17+
-- Docker Desktop
+- PostgreSQL
 - Git
+
+Docker Desktop is optional when running PostgreSQL and the application directly.
 
 The project includes the **Maven Wrapper**, so Maven does not need to be installed globally.
 
@@ -706,7 +796,7 @@ mvnw.cmd clean test
 ./mvnw.cmd clean test
 ```
 
-The project includes automated Spring Boot integration/security tests.
+The project contains automated Spring Boot integration and security tests.
 
 ---
 
@@ -732,7 +822,7 @@ target/
 
 ## Run the Application
 
-Make sure PostgreSQL is running and the database is available.
+Make sure PostgreSQL is running and the required environment variables are configured.
 
 Then:
 
@@ -752,6 +842,17 @@ http://localhost:8080
 
 Docker Compose is the recommended way to run the complete application because it starts both the Spring Boot application and PostgreSQL.
 
+Make sure your `.env` file contains non-empty values for:
+
+```text
+POSTGRES_PASSWORD
+DB_PASSWORD
+JWT_SECRET
+SEED_ADMIN_PASSWORD
+SEED_USER_PASSWORD
+SEED_USER2_PASSWORD
+```
+
 Build and start:
 
 ```cmd
@@ -764,14 +865,13 @@ Check services:
 docker compose ps
 ```
 
-Expected services:
+Expected services are the application and PostgreSQL containers defined in `docker-compose.yml`.
 
-```text
-booking-system-app
-booking-system-postgres
+Check application logs:
+
+```cmd
+docker compose logs -f app
 ```
-
-PostgreSQL should report a healthy status when its health check has completed.
 
 Stop the application:
 
@@ -785,7 +885,7 @@ The application is available at:
 http://localhost:8080
 ```
 
-PostgreSQL is available to the application through the Compose service name:
+Inside Docker Compose, the application connects to PostgreSQL using the Compose service hostname:
 
 ```text
 postgres
@@ -795,31 +895,41 @@ postgres
 
 # Seeded Accounts
 
-The application creates sample accounts when they do not already exist.
+The application creates development/demo accounts when they do not already exist.
 
 ## ADMIN
 
 ```text
-Username: practice-admin
-Password: Admin@123
+Username: configured by SEED_ADMIN_USERNAME
+Password: configured by SEED_ADMIN_PASSWORD
 Role: ADMIN
 ```
 
 ## USER
 
 ```text
-Username: practice-user
-Password: User@123
+Username: configured by SEED_USER_USERNAME
+Password: configured by SEED_USER_PASSWORD
 Role: USER
 ```
 
-> These are development/demo credentials. Change them for any real deployment.
+## USER 2
+
+```text
+Username: configured by SEED_USER2_USERNAME
+Password: configured by SEED_USER2_PASSWORD
+Role: USER
+```
+
+Passwords are intentionally **not hardcoded in the README or application configuration**. They must be supplied through environment variables.
+
+These accounts are intended for development/demo use.
 
 ---
 
 # Sample Resources
 
-The application seeds sample resources when the resource table is empty.
+When the asset table is empty, the application creates sample resources.
 
 Examples include:
 
@@ -861,16 +971,19 @@ The project contains an automated integration/security test suite using:
 
 - Spring Boot Test
 - MockMvc
-- JUnit
-- H2 in-memory database for tests
+- JUnit 5
+- H2 in-memory database
 
-The test suite covers:
+The current test suite contains **27 automated tests**.
+
+The tests cover:
 
 - Application context loading
 - USER login
 - ADMIN login
 - Invalid login credentials
 - Unauthenticated request rejection
+- Tampered JWT rejection
 - USER resource access
 - USER resource creation restriction
 - ADMIN resource creation
@@ -882,21 +995,29 @@ The test suite covers:
 - ADMIN booking creation
 - ADMIN booking update
 - ADMIN booking state changes
+- Invalid booking state transitions
+- Cancelled booking reuse
 - ADMIN booking deletion
 - Invalid booking time
 - Invalid asset ID
 - Booking conflict detection
+- Invalid price range
 - Resource filtering and pagination
 - Admin booking filtering and sorting
 - Invalid pagination
 
-Run:
+Run the complete test suite with:
 
 ```cmd
 mvnw.cmd clean test
 ```
 
-The current test suite contains **23 automated tests**, all of which pass in the validated development environment.
+Expected result in the current validated state:
+
+```text
+Tests run: 27, Failures: 0, Errors: 0, Skipped: 0
+BUILD SUCCESS
+```
 
 ---
 
@@ -915,43 +1036,54 @@ The application uses:
 - Custom unauthorized and forbidden responses
 - Reservation ownership checks
 - DTO-based request validation
+- Environment-based secrets and credentials
 
 Security flow:
 
 ```text
 Login
-   |
-   v
+  |
+  v
 AuthenticationManager
-   |
-   v
+  |
+  v
 AccountService
-   |
-   v
+  |
+  v
 BCrypt password verification
-   |
-   v
+  |
+  v
 JWT generated
-   |
-   v
+  |
+  v
 Client sends JWT
-   |
-   v
+  |
+  v
 JwtRequestFilter
-   |
-   v
+  |
+  v
 JWT validation
-   |
-   v
+  |
+  v
 SecurityContext
-   |
-   v
+  |
+  v
 Role-based authorization
 ```
 
-Invalid or missing authentication results in `401 Unauthorized`.
+Invalid or missing authentication results in:
 
-Authenticated users without the required role receive `403 Forbidden`.
+```text
+401 Unauthorized
+```
+
+Authenticated users without the required role receive:
+
+```text
+403 Forbidden
+```
+
+JWT signature tampering is rejected.
 
 ---
 
@@ -965,12 +1097,8 @@ GET /api/assets
 
 returns:
 
-```json
-{
-  "status": 401,
-  "error": "Unauthorized",
-  "message": "Authentication is required to access this resource"
-}
+```text
+401 Unauthorized
 ```
 
 With a valid USER JWT:
@@ -1023,26 +1151,24 @@ docker compose down
 The application has been verified through:
 
 - Automated integration/security tests
-- Maven package build
-- Docker image build
-- Docker Compose startup
-- PostgreSQL health check
-- Swagger UI access
-- JWT login through the running Dockerized application
+- Maven build
+- Docker configuration
+- Docker Compose configuration
+- PostgreSQL integration
+- Swagger/OpenAPI configuration
+- JWT authentication
 - Protected endpoint authorization
+- Booking ownership enforcement
+- Booking conflict detection
+- Booking state transition validation
 
-Example protected endpoint behavior without a token:
-
-```text
-GET http://localhost:8080/api/assets
-
-401 Unauthorized
-```
-
-Swagger UI is available at:
+Current automated test status:
 
 ```text
-http://localhost:8080/swagger-ui/index.html
+27 tests
+27 passed
+0 failures
+0 errors
 ```
 
 ---
@@ -1065,6 +1191,21 @@ For normal USER booking creation, the authenticated user is derived from the JWT
 
 Booking creation and administrator booking updates perform transactional conflict checks to reduce race conditions when reservations overlap.
 
+### Booking state management
+
+Booking states are explicitly controlled:
+
+```text
+PENDING -> CONFIRMED
+PENDING -> CANCELLED
+CONFIRMED -> CANCELLED
+CANCELLED -> no further transition
+```
+
+### Environment-based secrets
+
+Database passwords, JWT secrets, and seeded account passwords are supplied through environment variables rather than being stored as application defaults.
+
 ---
 
 # License
@@ -1081,6 +1222,7 @@ This project was created as a backend development assignment demonstrating:
 - Filtering
 - Pagination
 - Sorting
+- Booking conflict detection
 - Automated testing
 - Docker containerization
 - PostgreSQL integration

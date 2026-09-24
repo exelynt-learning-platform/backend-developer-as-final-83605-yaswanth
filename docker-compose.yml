@@ -5,9 +5,9 @@ services:
     container_name: booking-system-postgres
 
     environment:
-      POSTGRES_DB: booking_system
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
 
     ports:
       - "5432:5432"
@@ -16,7 +16,7 @@ services:
       - booking_postgres_data:/var/lib/postgresql/data
 
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U postgres -d booking_system"]
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
       interval: 5s
       timeout: 5s
       retries: 10
@@ -26,13 +26,16 @@ services:
     build: .
     container_name: booking-system-app
 
+    env_file:
+      - .env
+
     ports:
       - "8080:8080"
 
     environment:
       DB_URL: jdbc:postgresql://postgres:5432/booking_system
       DB_USERNAME: postgres
-      DB_PASSWORD: postgres
+      DB_PASSWORD: ${POSTGRES_PASSWORD}
 
     depends_on:
       postgres:

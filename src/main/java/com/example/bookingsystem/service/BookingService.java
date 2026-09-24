@@ -62,17 +62,21 @@ public class BookingService {
         validateNoConflict(
                 asset.getId(),
                 request.startAt(),
-                request.endAt());
+                request.endAt(),
+                null
+        );
 
         Booking booking = buildBooking(
                 account,
                 asset,
                 request.startAt(),
                 request.endAt(),
-                BookingState.PENDING);
+                BookingState.PENDING
+        );
 
         return BookingResponse.from(
-                bookingRepository.save(booking));
+                bookingRepository.save(booking)
+        );
     }
 
     // =========================================================
@@ -98,17 +102,21 @@ public class BookingService {
         validateNoConflict(
                 asset.getId(),
                 request.startAt(),
-                request.endAt());
+                request.endAt(),
+                null
+        );
 
         Booking booking = buildBooking(
                 account,
                 asset,
                 request.startAt(),
                 request.endAt(),
-                request.state());
+                request.state()
+        );
 
         return BookingResponse.from(
-                bookingRepository.save(booking));
+                bookingRepository.save(booking)
+        );
     }
 
     // =========================================================
@@ -134,15 +142,12 @@ public class BookingService {
 
         validateAssetAvailable(asset);
 
-        /*
-         * Exclude the booking being updated from the conflict check.
-         * Otherwise the booking would conflict with itself.
-         */
         validateNoConflict(
                 asset.getId(),
                 request.startAt(),
                 request.endAt(),
-                id);
+                id
+        );
 
         booking.setAccount(account);
         booking.setAsset(asset);
@@ -152,7 +157,8 @@ public class BookingService {
         booking.setState(request.state());
 
         return BookingResponse.from(
-                bookingRepository.save(booking));
+                bookingRepository.save(booking)
+        );
     }
 
     // =========================================================
@@ -170,62 +176,22 @@ public class BookingService {
             String sortBy,
             String direction) {
 
-        validatePage(page, size);
+        validatePriceRange(minPrice, maxPrice);
 
-        String property = switch (sortBy) {
-            case "id" -> "id";
-            case "startAt" -> "startAt";
-            case "endAt" -> "endAt";
-            case "price" -> "price";
-            case "createdAt" -> "createdAt";
-            case "state" -> "state";
-            default -> throw new IllegalArgumentException(
-                    "Invalid sortBy. Allowed values: id, startAt, endAt, price, createdAt, state");
-        };
-
-        Sort sort = "asc".equalsIgnoreCase(direction)
-                ? Sort.by(property).ascending()
-                : Sort.by(property).descending();
-
-        Pageable pageable = PageRequest.of(
+        Pageable pageable = createPageable(
                 page,
                 size,
-                sort);
+                sortBy,
+                direction
+        );
 
-        return bookingRepository
-                .searchMine(
+        return bookingRepository.searchMine(
                         username,
                         state,
                         minPrice,
                         maxPrice,
                         pageable)
                 .map(BookingResponse::from);
-    }
-
-    // =========================================================
-    // USER - VIEW ONE OWN BOOKING
-    // =========================================================
-
-    @Transactional(readOnly = true)
-    public BookingResponse findOwn(
-            Long bookingId,
-            String username) {
-
-        Booking booking = getBooking(bookingId);
-
-        /*
-         * Important security check:
-         * USER can only see their own booking.
-         */
-        if (!booking.getAccount()
-                .getUsername()
-                .equals(username)) {
-
-            throw new NotFoundException(
-                    "Booking not found");
-        }
-
-        return BookingResponse.from(booking);
     }
 
     // =========================================================
@@ -242,35 +208,40 @@ public class BookingService {
             String sortBy,
             String direction) {
 
-        validatePage(page, size);
+        validatePriceRange(minPrice, maxPrice);
 
-        String property = switch (sortBy) {
-            case "id" -> "id";
-            case "startAt" -> "startAt";
-            case "endAt" -> "endAt";
-            case "price" -> "price";
-            case "createdAt" -> "createdAt";
-            case "state" -> "state";
-            default -> throw new IllegalArgumentException(
-                    "Invalid sortBy. Allowed values: id, startAt, endAt, price, createdAt, state");
-        };
-
-        Sort sort = "asc".equalsIgnoreCase(direction)
-                ? Sort.by(property).ascending()
-                : Sort.by(property).descending();
-
-        Pageable pageable = PageRequest.of(
+        Pageable pageable = createPageable(
                 page,
                 size,
-                sort);
+                sortBy,
+                direction
+        );
 
-        return bookingRepository
-                .searchAll(
+        return bookingRepository.searchAll(
                         state,
                         minPrice,
                         maxPrice,
                         pageable)
                 .map(BookingResponse::from);
+    }
+
+    // =========================================================
+    // USER - VIEW OWN BOOKING BY ID
+    // =========================================================
+
+    @Transactional(readOnly = true)
+    public BookingResponse findOwn(
+            Long id,
+            String username) {
+
+        Booking booking = getBooking(id);
+
+        if (!booking.getAccount().getUsername().equals(username)) {
+            throw new NotFoundException(
+                    "Booking not found");
+        }
+
+        return BookingResponse.from(booking);
     }
 
     // =========================================================
@@ -288,17 +259,48 @@ public class BookingService {
     // ADMIN - CHANGE BOOKING STATE
     // =========================================================
 
-    @Transactional
+    @Transactional(isolation = Isolation.SERIALIZABLE)
     public BookingResponse changeState(
             Long id,
             BookingState newState) {
 
+        if (newState == null) {
+            throw new IllegalArgumentException(
+                    "Booking state is required");
+        }
+
         Booking booking = getBooking(id);
+
+        BookingState currentState = booking.getState();
+
+        validateStateTransition(
+                currentState,
+                newState
+        );
+
+        /*
+         * A booking becomes an active reservation when it is
+         * confirmed. Before confirming, verify that no other
+         * active booking occupies the same time range.
+         */
+        if (newState == BookingState.CONFIRMED) {
+
+            validateAssetAvailable(
+                    booking.getAsset());
+
+            validateNoConflict(
+                    booking.getAsset().getId(),
+                    booking.getStartAt(),
+                    booking.getEndAt(),
+                    booking.getId()
+            );
+        }
 
         booking.setState(newState);
 
         return BookingResponse.from(
-                bookingRepository.save(booking));
+                bookingRepository.save(booking)
+        );
     }
 
     // =========================================================
@@ -308,8 +310,9 @@ public class BookingService {
     @Transactional
     public void remove(Long id) {
 
-        bookingRepository.delete(
-                getBooking(id));
+        Booking booking = getBooking(id);
+
+        bookingRepository.delete(booking);
     }
 
     // =========================================================
@@ -331,83 +334,64 @@ public class BookingService {
         booking.setEndAt(endAt);
         booking.setPrice(asset.getPrice());
         booking.setState(state);
-        booking.setCreatedAt(LocalDateTime.now());
+
+        /*
+         * createdAt is automatically populated by Booking's
+         * @PrePersist lifecycle callback.
+         */
 
         return booking;
     }
 
     // =========================================================
-    // FIND BOOKING
-    // =========================================================
-
-    private Booking getBooking(Long id) {
-
-        return bookingRepository.findById(id)
-                .orElseThrow(() ->
-                        new NotFoundException(
-                                "Booking not found: " + id));
-    }
-
-    // =========================================================
-    // FIND ASSET
-    // =========================================================
-
-    private Asset getAsset(Long id) {
-
-        return assetRepository.findById(id)
-                .orElseThrow(() ->
-                        new NotFoundException(
-                                "Asset not found: " + id));
-    }
-
-    // =========================================================
-    // VALIDATE BOOKING TIME
+    // VALIDATION
     // =========================================================
 
     private void validateTime(
             LocalDateTime startAt,
             LocalDateTime endAt) {
 
-        if (!endAt.isAfter(startAt)) {
+        if (startAt == null || endAt == null) {
+            throw new IllegalArgumentException(
+                    "Start time and end time are required");
+        }
 
+        if (!endAt.isAfter(startAt)) {
             throw new IllegalArgumentException(
                     "End time must be after start time");
         }
     }
 
-    // =========================================================
-    // VALIDATE ASSET AVAILABILITY
-    // =========================================================
+    private void validatePriceRange(
+            BigDecimal minPrice,
+            BigDecimal maxPrice) {
 
-    private void validateAssetAvailable(
-            Asset asset) {
+        if (minPrice != null && minPrice.signum() < 0) {
+            throw new IllegalArgumentException(
+                    "Minimum price cannot be negative");
+        }
 
-        if (!asset.isAvailable()) {
+        if (maxPrice != null && maxPrice.signum() < 0) {
+            throw new IllegalArgumentException(
+                    "Maximum price cannot be negative");
+        }
+
+        if (minPrice != null
+                && maxPrice != null
+                && minPrice.compareTo(maxPrice) > 0) {
 
             throw new IllegalArgumentException(
-                    "Asset is currently unavailable");
+                    "Minimum price cannot be greater than maximum price");
         }
     }
 
-    // =========================================================
-    // VALIDATE BOOKING CONFLICT - CREATE
-    // =========================================================
+    private void validateAssetAvailable(Asset asset) {
 
-    private void validateNoConflict(
-            Long assetId,
-            LocalDateTime startAt,
-            LocalDateTime endAt) {
-
-        validateNoConflict(
-                assetId,
-                startAt,
-                endAt,
-                null);
+        if (!asset.isAvailable()) {
+            throw new IllegalArgumentException(
+                    "Asset is not available");
+        }
     }
-
-    // =========================================================
-    // VALIDATE BOOKING CONFLICT
-    // =========================================================
 
     private void validateNoConflict(
             Long assetId,
@@ -415,37 +399,153 @@ public class BookingService {
             LocalDateTime endAt,
             Long excludedBookingId) {
 
-        long conflicts = bookingRepository.countConflictingBookings(
-                assetId,
-                BookingState.CANCELLED,
-                startAt,
-                endAt,
-                excludedBookingId);
+        long conflicts =
+                bookingRepository.countConflictingBookings(
+                        assetId,
+                        startAt,
+                        endAt,
+                        BookingState.CANCELLED,
+                        excludedBookingId
+                );
 
         if (conflicts > 0) {
             throw new BookingConflictException(
-                    "Asset is already booked for the selected time");
+                    "Asset is already booked for the requested time");
         }
     }
 
     // =========================================================
-    // VALIDATE PAGINATION
+    // STATE TRANSITIONS
     // =========================================================
+
+    private void validateStateTransition(
+            BookingState currentState,
+            BookingState newState) {
+
+        if (currentState == newState) {
+            return;
+        }
+
+        boolean valid = switch (currentState) {
+
+            case PENDING ->
+                    newState == BookingState.CONFIRMED
+                            || newState == BookingState.CANCELLED;
+
+            case CONFIRMED ->
+                    newState == BookingState.CANCELLED;
+
+            case CANCELLED ->
+                    false;
+        };
+
+        if (!valid) {
+            throw new IllegalArgumentException(
+                    "Invalid booking state transition from "
+                            + currentState
+                            + " to "
+                            + newState);
+        }
+    }
+
+    // =========================================================
+    // PAGINATION AND SORTING
+    // =========================================================
+
+    private Pageable createPageable(
+            int page,
+            int size,
+            String sortBy,
+            String direction) {
+
+        validatePage(page, size);
+
+        String property = validateSortProperty(sortBy);
+
+        if (!"asc".equalsIgnoreCase(direction)
+                && !"desc".equalsIgnoreCase(direction)) {
+
+            throw new IllegalArgumentException(
+                    "Sort direction must be 'asc' or 'desc'");
+        }
+
+        Sort sort;
+
+        if ("asc".equalsIgnoreCase(direction)) {
+            sort = Sort.by(property).ascending();
+        } else {
+            sort = Sort.by(property).descending();
+        }
+
+        return PageRequest.of(
+                page,
+                size,
+                sort
+        );
+    }
+
+    private String validateSortProperty(String sortBy) {
+
+        if (sortBy == null || sortBy.isBlank()) {
+            return "createdAt";
+        }
+
+        return switch (sortBy) {
+
+            case "id" -> "id";
+            case "startAt" -> "startAt";
+            case "endAt" -> "endAt";
+            case "price" -> "price";
+            case "createdAt" -> "createdAt";
+            case "state" -> "state";
+
+            default -> throw new IllegalArgumentException(
+                    "Invalid sort field: " + sortBy);
+        };
+    }
 
     private void validatePage(
             int page,
             int size) {
 
         if (page < 0) {
-
             throw new IllegalArgumentException(
                     "Page must be greater than or equal to 0");
         }
 
         if (size < 1 || size > 100) {
-
             throw new IllegalArgumentException(
                     "Size must be between 1 and 100");
         }
+    }
+
+    // =========================================================
+    // HELPERS
+    // =========================================================
+
+    private Asset getAsset(Long id) {
+
+        if (id == null) {
+            throw new IllegalArgumentException(
+                    "Asset ID is required");
+        }
+
+        return assetRepository.findById(id)
+                .orElseThrow(() ->
+                        new NotFoundException(
+                                "Asset not found: " + id));
+    }
+
+    private Booking getBooking(Long id) {
+
+        if (id == null) {
+            throw new IllegalArgumentException(
+                    "Booking ID is required");
+        }
+
+        return bookingRepository.findById(id)
+                .orElseThrow(() ->
+                        new NotFoundException(
+                                "Booking not found: " + id));
     }
 }
