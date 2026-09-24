@@ -7,6 +7,7 @@ import com.example.bookingsystem.entity.Account;
 import com.example.bookingsystem.entity.Asset;
 import com.example.bookingsystem.entity.Booking;
 import com.example.bookingsystem.entity.BookingState;
+import com.example.bookingsystem.exception.BookingConflictException;
 import com.example.bookingsystem.exception.NotFoundException;
 import com.example.bookingsystem.repository.AccountRepository;
 import com.example.bookingsystem.repository.AssetRepository;
@@ -63,18 +64,12 @@ public class BookingService {
                 request.startAt(),
                 request.endAt());
 
-        Booking booking = new Booking();
-
-        booking.setAccount(account);
-        booking.setAsset(asset);
-        booking.setStartAt(request.startAt());
-        booking.setEndAt(request.endAt());
-        booking.setPrice(asset.getPrice());
-
-        // USER bookings always start as PENDING.
-        booking.setState(BookingState.PENDING);
-
-        booking.setCreatedAt(LocalDateTime.now());
+        Booking booking = buildBooking(
+                account,
+                asset,
+                request.startAt(),
+                request.endAt(),
+                BookingState.PENDING);
 
         return BookingResponse.from(
                 bookingRepository.save(booking));
@@ -105,18 +100,12 @@ public class BookingService {
                 request.startAt(),
                 request.endAt());
 
-        Booking booking = new Booking();
-
-        booking.setAccount(account);
-        booking.setAsset(asset);
-        booking.setStartAt(request.startAt());
-        booking.setEndAt(request.endAt());
-        booking.setPrice(asset.getPrice());
-
-        // ADMIN can choose the initial state.
-        booking.setState(request.state());
-
-        booking.setCreatedAt(LocalDateTime.now());
+        Booking booking = buildBooking(
+                account,
+                asset,
+                request.startAt(),
+                request.endAt(),
+                request.state());
 
         return BookingResponse.from(
                 bookingRepository.save(booking));
@@ -177,14 +166,31 @@ public class BookingService {
             BigDecimal minPrice,
             BigDecimal maxPrice,
             int page,
-            int size) {
+            int size,
+            String sortBy,
+            String direction) {
 
         validatePage(page, size);
+
+        String property = switch (sortBy) {
+            case "id" -> "id";
+            case "startAt" -> "startAt";
+            case "endAt" -> "endAt";
+            case "price" -> "price";
+            case "createdAt" -> "createdAt";
+            case "state" -> "state";
+            default -> throw new IllegalArgumentException(
+                    "Invalid sortBy. Allowed values: id, startAt, endAt, price, createdAt, state");
+        };
+
+        Sort sort = "asc".equalsIgnoreCase(direction)
+                ? Sort.by(property).ascending()
+                : Sort.by(property).descending();
 
         Pageable pageable = PageRequest.of(
                 page,
                 size,
-                Sort.by("createdAt").descending());
+                sort);
 
         return bookingRepository
                 .searchMine(
@@ -307,6 +313,30 @@ public class BookingService {
     }
 
     // =========================================================
+    // BUILD BOOKING
+    // =========================================================
+
+    private Booking buildBooking(
+            Account account,
+            Asset asset,
+            LocalDateTime startAt,
+            LocalDateTime endAt,
+            BookingState state) {
+
+        Booking booking = new Booking();
+
+        booking.setAccount(account);
+        booking.setAsset(asset);
+        booking.setStartAt(startAt);
+        booking.setEndAt(endAt);
+        booking.setPrice(asset.getPrice());
+        booking.setState(state);
+        booking.setCreatedAt(LocalDateTime.now());
+
+        return booking;
+    }
+
+    // =========================================================
     // FIND BOOKING
     // =========================================================
 
@@ -375,6 +405,10 @@ public class BookingService {
                 null);
     }
 
+    // =========================================================
+    // VALIDATE BOOKING CONFLICT
+    // =========================================================
+
     private void validateNoConflict(
             Long assetId,
             LocalDateTime startAt,
@@ -389,7 +423,7 @@ public class BookingService {
                 excludedBookingId);
 
         if (conflicts > 0) {
-            throw new IllegalArgumentException(
+            throw new BookingConflictException(
                     "Asset is already booked for the selected time");
         }
     }

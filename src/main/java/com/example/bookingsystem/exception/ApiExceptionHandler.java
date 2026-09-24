@@ -21,6 +21,15 @@ public class ApiExceptionHandler {
                 .body(error(ex.getMessage()));
     }
 
+    @ExceptionHandler(BookingConflictException.class)
+    public ResponseEntity<?> bookingConflict(
+            BookingConflictException ex) {
+
+        return ResponseEntity
+                .status(HttpStatus.CONFLICT)
+                .body(error(ex.getMessage()));
+    }
+
     @ExceptionHandler(IllegalArgumentException.class)
     public ResponseEntity<?> badRequest(
             IllegalArgumentException ex) {

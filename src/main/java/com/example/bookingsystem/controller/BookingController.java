@@ -1,6 +1,7 @@
 package com.example.bookingsystem.controller;
 
-import com.example.bookingsystem.dto.*;
+import com.example.bookingsystem.dto.BookingRequest;
+import com.example.bookingsystem.dto.BookingResponse;
 import com.example.bookingsystem.entity.BookingState;
 import com.example.bookingsystem.service.BookingService;
 import jakarta.validation.Valid;
@@ -39,7 +40,9 @@ public class BookingController {
             @RequestParam(required = false) BigDecimal minPrice,
             @RequestParam(required = false) BigDecimal maxPrice,
             @RequestParam(defaultValue = "0") int page,
-            @RequestParam(defaultValue = "10") int size) {
+            @RequestParam(defaultValue = "10") int size,
+            @RequestParam(defaultValue = "createdAt") String sortBy,
+            @RequestParam(defaultValue = "desc") String direction) {
 
         return bookingService.mine(
                 authentication.getName(),
@@ -47,7 +50,9 @@ public class BookingController {
                 minPrice,
                 maxPrice,
                 page,
-                size);
+                size,
+                sortBy,
+                direction);
     }
 
     @GetMapping("/{id}")

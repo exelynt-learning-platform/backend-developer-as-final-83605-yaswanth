@@ -53,14 +53,11 @@ public class SecurityConfig {
 
             response.setStatus(401);
             response.setContentType("application/json");
+            response.setCharacterEncoding("UTF-8");
 
-            response.getWriter().write("""
-                    {
-                      "status": 401,
-                      "error": "Unauthorized",
-                      "message": "Authentication is required to access this resource"
-                    }
-                    """);
+            response.getWriter().write(
+                    "{\"status\":401,\"error\":\"Unauthorized\",\"message\":\"Authentication is required to access this resource\"}"
+            );
         };
     }
 
@@ -74,14 +71,11 @@ public class SecurityConfig {
 
             response.setStatus(403);
             response.setContentType("application/json");
+            response.setCharacterEncoding("UTF-8");
 
-            response.getWriter().write("""
-                    {
-                      "status": 403,
-                      "error": "Forbidden",
-                      "message": "You do not have permission to access this resource"
-                    }
-                    """);
+            response.getWriter().write(
+                    "{\"status\":403,\"error\":\"Forbidden\",\"message\":\"You do not have permission to access this resource\"}"
+            );
         };
     }
 
@@ -124,28 +118,28 @@ public class SecurityConfig {
                         // RESOURCE ENDPOINTS
                         // =====================================================
 
-                        // USER + ADMIN can view resources
+                        // USER + ADMIN can view resources.
                         .requestMatchers(
                                 HttpMethod.GET,
                                 "/api/assets/**"
                         )
                         .hasAnyRole("USER", "ADMIN")
 
-                        // Only ADMIN can create resources
+                        // Only ADMIN can create resources.
                         .requestMatchers(
                                 HttpMethod.POST,
                                 "/api/assets/**"
                         )
                         .hasRole("ADMIN")
 
-                        // Only ADMIN can update resources
+                        // Only ADMIN can update resources.
                         .requestMatchers(
                                 HttpMethod.PUT,
                                 "/api/assets/**"
                         )
                         .hasRole("ADMIN")
 
-                        // Only ADMIN can delete resources
+                        // Only ADMIN can delete resources.
                         .requestMatchers(
                                 HttpMethod.DELETE,
                                 "/api/assets/**"
@@ -157,7 +151,7 @@ public class SecurityConfig {
                         // =====================================================
 
                         // USER can create their own booking.
-                        // The username comes from the JWT Authentication,
+                        // The username comes from JWT authentication,
                         // not from the request body.
                         .requestMatchers(
                                 HttpMethod.POST,

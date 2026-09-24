@@ -5,6 +5,7 @@ import com.example.bookingsystem.entity.Account;
 import com.example.bookingsystem.entity.Asset;
 import com.example.bookingsystem.repository.AccountRepository;
 import com.example.bookingsystem.repository.AssetRepository;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.CommandLineRunner;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -14,6 +15,33 @@ import java.math.BigDecimal;
 
 @Configuration
 public class DataInitializer {
+
+    @Value("${app.seed.admin.username:practice-admin}")
+    private String adminUsername;
+
+    @Value("${app.seed.admin.email:practice-admin@example.com}")
+    private String adminEmail;
+
+    @Value("${app.seed.admin.password:Admin@123}")
+    private String adminPassword;
+
+    @Value("${app.seed.user.username:practice-user}")
+    private String userUsername;
+
+    @Value("${app.seed.user.email:practice-user@example.com}")
+    private String userEmail;
+
+    @Value("${app.seed.user.password:User@123}")
+    private String userPassword;
+
+    @Value("${app.seed.user2.username:practice-user-2}")
+    private String user2Username;
+
+    @Value("${app.seed.user2.email:practice-user-2@example.com}")
+    private String user2Email;
+
+    @Value("${app.seed.user2.password:User2@123}")
+    private String user2Password;
 
     @Bean
     CommandLineRunner loadInitialData(
@@ -27,14 +55,14 @@ public class DataInitializer {
             // ADMIN USER
             // =========================================================
 
-            if (!accountRepository.existsByUsername("practice-admin")) {
+            if (!accountRepository.existsByUsername(adminUsername)) {
 
                 Account admin = new Account();
 
-                admin.setUsername("practice-admin");
-                admin.setEmail("practice-admin@example.com");
+                admin.setUsername(adminUsername);
+                admin.setEmail(adminEmail);
                 admin.setPasswordHash(
-                        passwordEncoder.encode("Admin@123"));
+                        passwordEncoder.encode(adminPassword));
                 admin.setAccessLevel(AccessLevel.ADMIN);
                 admin.setEnabled(true);
 
@@ -45,14 +73,14 @@ public class DataInitializer {
             // USER 1
             // =========================================================
 
-            if (!accountRepository.existsByUsername("practice-user")) {
+            if (!accountRepository.existsByUsername(userUsername)) {
 
                 Account user = new Account();
 
-                user.setUsername("practice-user");
-                user.setEmail("practice-user@example.com");
+                user.setUsername(userUsername);
+                user.setEmail(userEmail);
                 user.setPasswordHash(
-                        passwordEncoder.encode("User@123"));
+                        passwordEncoder.encode(userPassword));
                 user.setAccessLevel(AccessLevel.USER);
                 user.setEnabled(true);
 
@@ -64,14 +92,14 @@ public class DataInitializer {
             // Used for reservation ownership testing
             // =========================================================
 
-            if (!accountRepository.existsByUsername("practice-user-2")) {
+            if (!accountRepository.existsByUsername(user2Username)) {
 
                 Account user2 = new Account();
 
-                user2.setUsername("practice-user-2");
-                user2.setEmail("practice-user-2@example.com");
+                user2.setUsername(user2Username);
+                user2.setEmail(user2Email);
                 user2.setPasswordHash(
-                        passwordEncoder.encode("User2@123"));
+                        passwordEncoder.encode(user2Password));
                 user2.setAccessLevel(AccessLevel.USER);
                 user2.setEnabled(true);
 
