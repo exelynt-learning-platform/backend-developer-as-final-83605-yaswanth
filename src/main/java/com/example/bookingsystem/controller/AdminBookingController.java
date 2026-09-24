@@ -1,6 +1,6 @@
 package com.example.bookingsystem.controller;
 
-import com.example.bookingsystem.dto.BookingRequest;
+import com.example.bookingsystem.dto.AdminBookingRequest;
 import com.example.bookingsystem.dto.BookingResponse;
 import com.example.bookingsystem.dto.BookingStateRequest;
 import com.example.bookingsystem.entity.BookingState;
@@ -28,14 +28,18 @@ public class AdminBookingController {
             @RequestParam(required = false) BigDecimal minPrice,
             @RequestParam(required = false) BigDecimal maxPrice,
             @RequestParam(defaultValue = "0") int page,
-            @RequestParam(defaultValue = "10") int size) {
+            @RequestParam(defaultValue = "10") int size,
+            @RequestParam(defaultValue = "createdAt") String sortBy,
+            @RequestParam(defaultValue = "desc") String direction) {
 
         return bookingService.all(
                 state,
                 minPrice,
                 maxPrice,
                 page,
-                size);
+                size,
+                sortBy,
+                direction);
     }
 
     @GetMapping("/{id}")
@@ -46,22 +50,17 @@ public class AdminBookingController {
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
     public BookingResponse create(
-            @RequestParam String username,
-            @Valid @RequestBody BookingRequest request) {
+            @Valid @RequestBody AdminBookingRequest request) {
 
-        return bookingService.createForAdmin(
-                username,
-                request);
+        return bookingService.createByAdmin(request);
     }
 
     @PutMapping("/{id}")
     public BookingResponse update(
             @PathVariable Long id,
-            @Valid @RequestBody BookingRequest request) {
+            @Valid @RequestBody AdminBookingRequest request) {
 
-        return bookingService.updateForAdmin(
-                id,
-                request);
+        return bookingService.updateByAdmin(id, request);
     }
 
     @PatchMapping("/{id}/state")

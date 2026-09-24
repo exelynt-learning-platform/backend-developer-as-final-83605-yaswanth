@@ -1,37 +1,42 @@
 # Booking System
 
-A RESTful Resource Booking System built with Spring Boot, Java 17, Spring Security, JWT authentication, PostgreSQL, JPA/Hibernate, and Docker.
+A RESTful Resource Booking System built with **Spring Boot 4.1.1, Java 17, Spring Security, JWT authentication, PostgreSQL, JPA/Hibernate, and Docker**.
 
-The system allows users to view available resources and create/manage their own reservations, while administrators can manage resources and reservations with role-based access control.
+The system allows users to view bookable resources and create/manage their own reservations, while administrators can manage resources and reservations with role-based access control.
+
+---
 
 ## Features
 
 - JWT-based authentication
 - BCrypt password hashing
-- USER and ADMIN roles
+- `USER` and `ADMIN` roles
 - Stateless Spring Security configuration
 - Role-based authorization
-- Resource CRUD operations for ADMIN
-- Resource viewing for USER and ADMIN
-- Reservation creation for USER
-- Users can view only their own reservations
-- ADMIN reservation management
-- Reservation status management
-- Reservation ownership validation
-- Reservation conflict detection
-- Reservation status filtering
-- Price filtering
+- Resource CRUD operations for `ADMIN`
+- Resource viewing for `USER` and `ADMIN`
+- User booking creation
+- Users can view only their own bookings
+- Reservation ownership enforcement
+- Administrator booking management
+- Booking status management
+- Booking conflict detection
+- Booking status filtering
+- Booking price filtering
+- Resource price/category/availability filtering
 - Pagination
-- Sorting for resources
+- Sorting
 - Request validation
 - Centralized exception handling
 - PostgreSQL database
 - JPA/Hibernate ORM
 - Swagger/OpenAPI documentation
-- Seeded ADMIN and USER accounts
+- Seeded `ADMIN` and `USER` accounts
 - Docker and Docker Compose support
 - Environment-variable based configuration
-- Automated Spring Boot context test
+- Integration and security tests
+
+---
 
 ## Technology Stack
 
@@ -48,7 +53,9 @@ The system allows users to view available resources and create/manage their own 
 | Docker | Containerization |
 | Docker Compose | Application and database orchestration |
 | Swagger / OpenAPI | API documentation |
-| JUnit | Testing |
+| JUnit 5 / Spring Boot Test | Automated testing |
+
+---
 
 ## Architecture
 
@@ -56,44 +63,53 @@ The application follows a layered architecture:
 
 ```text
 Client
-  |
-  v
+   |
+   v
 Controller Layer
-  |
-  v
+   |
+   v
 Service Layer
-  |
-  v
+   |
+   v
 Repository Layer
-  |
-  v
+   |
+   v
 PostgreSQL
 ```
 
-Security flow:
+### Security flow
 
 ```text
 Client
-  |
-  | Authorization: Bearer <JWT>
-  v
+   |
+   | Authorization: Bearer <JWT>
+   v
 JwtRequestFilter
-  |
-  v
+   |
+   v
 JWT validation
-  |
-  v
+   |
+   v
 Spring Security
-  |
-  +---- USER
-  |
-  +---- ADMIN
-  |
-  v
+   |
+   +---- USER
+   |
+   +---- ADMIN
+   |
+   v
 Controller
 ```
 
-The application is implemented as a modular monolith. Controllers handle HTTP requests, services contain business logic, repositories handle persistence, and security components handle JWT authentication and authorization.
+The application is implemented as a **modular monolith**.
+
+- Controllers handle HTTP requests.
+- Services contain business logic.
+- Repositories handle persistence.
+- DTOs define API request/response contracts.
+- Security components handle JWT authentication.
+- Spring Security enforces role-based authorization.
+
+---
 
 ## Project Structure
 
@@ -114,6 +130,7 @@ src/
 │   │       │   └── BookingController.java
 │   │       │
 │   │       ├── dto/
+│   │       │   ├── AdminBookingRequest.java
 │   │       │   ├── AssetRequest.java
 │   │       │   ├── AssetResponse.java
 │   │       │   ├── BookingRequest.java
@@ -160,6 +177,8 @@ src/
     └── resources/
         └── application.yaml
 ```
+
+---
 
 ## Domain Model
 
@@ -233,6 +252,8 @@ Account 1 ---- * Booking * ---- 1 Asset
 
 A booking belongs to one account and one asset.
 
+---
+
 ## Authentication
 
 Authentication is provided through JWT.
@@ -241,6 +262,7 @@ Authentication is provided through JWT.
 
 ```http
 POST /auth/login
+Content-Type: application/json
 ```
 
 Request:
@@ -270,7 +292,9 @@ Authorization: Bearer <JWT_TOKEN>
 
 The JWT contains the authenticated username and role.
 
-The application uses a stateless Spring Security configuration, so server-side HTTP sessions are not used for authentication.
+The application uses a **stateless Spring Security configuration**, so server-side HTTP sessions are not used for authentication.
+
+---
 
 ## Authorization
 
@@ -282,7 +306,7 @@ The application uses a stateless Spring Security configuration, so server-side H
 | Create resource | No |
 | Update resource | No |
 | Delete resource | No |
-| Create own booking | Yes |
+| Create booking | Yes |
 | View own bookings | Yes |
 | View another user's booking | No |
 | Manage all bookings | No |
@@ -301,17 +325,41 @@ The application uses a stateless Spring Security configuration, so server-side H
 | Change booking state | Yes |
 | Delete booking | Yes |
 
-Reservation ownership is enforced in the service layer. The authenticated username is obtained from the JWT rather than being accepted as the identity of a normal USER booking request.
+### Ownership protection
 
-## API Endpoints
+For normal user booking creation, the account identity is **not accepted from the request body**.
 
-### Authentication
+Instead:
+
+```text
+JWT
+ ↓
+Authenticated username
+ ↓
+BookingService
+ ↓
+Account associated with JWT
+ ↓
+Booking
+```
+
+This prevents a user from submitting another user's identity when creating a booking.
+
+When a user requests an individual booking, the service verifies that the booking belongs to the authenticated user.
+
+---
+
+# API Endpoints
+
+## Authentication
 
 | Method | Endpoint | Access |
 |---|---|---|
 | POST | `/auth/login` | Public |
 
-### Resources
+---
+
+## Resources
 
 | Method | Endpoint | Access |
 |---|---|---|
@@ -321,7 +369,9 @@ Reservation ownership is enforced in the service layer. The authenticated userna
 | PUT | `/api/assets/{id}` | ADMIN |
 | DELETE | `/api/assets/{id}` | ADMIN |
 
-### User Bookings
+---
+
+## User Bookings
 
 | Method | Endpoint | Access |
 |---|---|---|
@@ -329,7 +379,29 @@ Reservation ownership is enforced in the service layer. The authenticated userna
 | GET | `/api/bookings/my` | USER |
 | GET | `/api/bookings/{id}` | USER |
 
-### Admin Bookings
+### Create booking
+
+```http
+POST /api/bookings
+Authorization: Bearer <JWT_TOKEN>
+Content-Type: application/json
+```
+
+Request:
+
+```json
+{
+  "assetId": 1,
+  "startAt": "2027-01-10T10:00:00",
+  "endAt": "2027-01-10T12:00:00"
+}
+```
+
+The user identity is obtained from the JWT.
+
+---
+
+## Admin Bookings
 
 | Method | Endpoint | Access |
 |---|---|---|
@@ -340,7 +412,45 @@ Reservation ownership is enforced in the service layer. The authenticated userna
 | PATCH | `/api/admin/bookings/{id}/state` | ADMIN |
 | DELETE | `/api/admin/bookings/{id}` | ADMIN |
 
-## Resource Filtering, Pagination and Sorting
+### Create booking as ADMIN
+
+```http
+POST /api/admin/bookings
+Authorization: Bearer <ADMIN_JWT>
+Content-Type: application/json
+```
+
+Request:
+
+```json
+{
+  "accountId": 1,
+  "assetId": 1,
+  "startAt": "2027-01-10T10:00:00",
+  "endAt": "2027-01-10T12:00:00",
+  "state": "CONFIRMED"
+}
+```
+
+### Change booking state
+
+```http
+PATCH /api/admin/bookings/{id}/state
+Authorization: Bearer <ADMIN_JWT>
+Content-Type: application/json
+```
+
+Request:
+
+```json
+{
+  "state": "CONFIRMED"
+}
+```
+
+---
+
+# Resource Filtering, Pagination and Sorting
 
 Resources support filtering by:
 
@@ -355,26 +465,28 @@ Example:
 GET /api/assets?minPrice=500&maxPrice=2000&category=ROOM&available=true
 ```
 
-Pagination:
+### Pagination
 
 ```http
 GET /api/assets?page=0&size=10
 ```
 
-Sorting:
+### Sorting
 
 ```http
 GET /api/assets?sortBy=price&direction=asc
 ```
 
-Supported resource sorting fields include:
+Supported resource sorting fields:
 
 - `id`
 - `name`
 - `price`
 - `category`
 
-## Booking Filtering and Pagination
+---
+
+# Booking Filtering, Pagination and Sorting
 
 Bookings support filtering by:
 
@@ -382,7 +494,7 @@ Bookings support filtering by:
 - Minimum price
 - Maximum price
 
-Example:
+### User booking filtering
 
 ```http
 GET /api/bookings/my?state=PENDING
@@ -406,32 +518,72 @@ Pagination:
 GET /api/bookings/my?page=0&size=10
 ```
 
-Administrators can use the same filtering options on:
+### Admin booking filtering
 
 ```http
-GET /api/admin/bookings
+GET /api/admin/bookings?state=PENDING&minPrice=500&maxPrice=2000
 ```
 
-## Reservation Conflict Detection
+Pagination:
+
+```http
+GET /api/admin/bookings?page=0&size=10
+```
+
+Sorting:
+
+```http
+GET /api/admin/bookings?sortBy=price&direction=asc
+```
+
+Supported admin booking sorting fields:
+
+- `id`
+- `startAt`
+- `endAt`
+- `price`
+- `createdAt`
+- `state`
+
+---
+
+# Reservation Conflict Detection
 
 The system prevents overlapping active reservations for the same resource.
 
-A new booking is rejected when the selected time range overlaps an existing non-cancelled booking.
+A new booking is rejected when its time range overlaps an existing non-cancelled booking for the same asset.
 
-Cancelled bookings do not block a resource from being booked again.
+The overlap condition is based on:
 
-## Validation and Error Handling
+```text
+existing.startAt < requested.endAt
+AND
+existing.endAt > requested.startAt
+```
+
+`CANCELLED` bookings do not block a resource from being booked again.
+
+Booking creation and administrator booking updates use transactional conflict checking.
+
+---
+
+# Validation and Error Handling
 
 Request DTOs use Jakarta Bean Validation.
 
 Examples include:
 
 - Required fields
-- Positive/non-negative prices
+- Non-negative resource prices
 - Future booking start time
 - Valid booking time ranges
+- Valid pagination values
 
-The application uses centralized exception handling through `ApiExceptionHandler`.
+The application uses centralized exception handling through:
+
+```text
+ApiExceptionHandler
+```
 
 Typical responses include:
 
@@ -442,7 +594,7 @@ Typical responses include:
 404 Not Found
 ```
 
-Example unauthorized response:
+### Example unauthorized response
 
 ```json
 {
@@ -452,7 +604,7 @@ Example unauthorized response:
 }
 ```
 
-Example forbidden response:
+### Example forbidden response
 
 ```json
 {
@@ -462,7 +614,9 @@ Example forbidden response:
 }
 ```
 
-## Database Configuration
+---
+
+# Database Configuration
 
 The application uses PostgreSQL.
 
@@ -476,9 +630,9 @@ Host: localhost
 Port: 5432
 ```
 
-The application supports environment variables so database configuration does not have to be hardcoded.
+The application supports environment variables so database and JWT configuration can be changed without modifying source code.
 
-Available variables:
+Available application variables:
 
 ```text
 DB_URL
@@ -489,15 +643,13 @@ JWT_EXPIRATION_MS
 SERVER_PORT
 ```
 
-## Environment Configuration
+> For production use, replace the default development credentials and JWT secret with secure values.
 
-Create a `.env` file for local/container configuration if required.
+---
 
-A template is provided as:
+# Environment Configuration
 
-```text
-.env.example
-```
+Create a `.env` file for local/container configuration when needed.
 
 Example:
 
@@ -516,11 +668,13 @@ JWT_EXPIRATION_MS=86400000
 SERVER_PORT=8080
 ```
 
-Do not commit real secrets or passwords to Git.
+Do not commit real secrets, passwords, or production credentials to Git.
 
-## Running Locally
+---
 
-### Prerequisites
+# Running Locally
+
+## Prerequisites
 
 Make sure the following are installed:
 
@@ -528,24 +682,62 @@ Make sure the following are installed:
 - Docker Desktop
 - Git
 
-Maven Wrapper is included in the project, so Maven does not need to be installed globally.
+The project includes the **Maven Wrapper**, so Maven does not need to be installed globally.
 
-### Run tests
+---
 
-Windows:
+## Run Tests
+
+### Windows Command Prompt
+
+```cmd
+mvnw.cmd clean test
+```
+
+### Windows PowerShell
 
 ```powershell
 .\mvnw.cmd clean test
 ```
 
-### Run the application
+### Git Bash
+
+```bash
+./mvnw.cmd clean test
+```
+
+The project includes automated Spring Boot integration/security tests.
+
+---
+
+## Build the Application
+
+```cmd
+mvnw.cmd clean package
+```
+
+To skip tests:
+
+```cmd
+mvnw.cmd clean package -DskipTests
+```
+
+The generated JAR is placed under:
+
+```text
+target/
+```
+
+---
+
+## Run the Application
 
 Make sure PostgreSQL is running and the database is available.
 
 Then:
 
-```powershell
-.\mvnw.cmd spring-boot:run
+```cmd
+mvnw.cmd spring-boot:run
 ```
 
 The application runs on:
@@ -554,25 +746,36 @@ The application runs on:
 http://localhost:8080
 ```
 
-## Running with Docker Compose
+---
 
-The recommended way to run the complete application is Docker Compose.
+# Running with Docker Compose
+
+Docker Compose is the recommended way to run the complete application because it starts both the Spring Boot application and PostgreSQL.
 
 Build and start:
 
-```powershell
+```cmd
 docker compose up --build -d
 ```
 
-Check running containers:
+Check services:
 
-```powershell
-docker ps
+```cmd
+docker compose ps
 ```
+
+Expected services:
+
+```text
+booking-system-app
+booking-system-postgres
+```
+
+PostgreSQL should report a healthy status when its health check has completed.
 
 Stop the application:
 
-```powershell
+```cmd
 docker compose down
 ```
 
@@ -582,19 +785,19 @@ The application is available at:
 http://localhost:8080
 ```
 
-PostgreSQL runs as a separate Docker Compose service.
-
-The application connects to PostgreSQL using the Compose service name:
+PostgreSQL is available to the application through the Compose service name:
 
 ```text
 postgres
 ```
 
-## Seeded Accounts
+---
+
+# Seeded Accounts
 
 The application creates sample accounts when they do not already exist.
 
-### ADMIN
+## ADMIN
 
 ```text
 Username: practice-admin
@@ -602,7 +805,7 @@ Password: Admin@123
 Role: ADMIN
 ```
 
-### USER
+## USER
 
 ```text
 Username: practice-user
@@ -610,21 +813,15 @@ Password: User@123
 Role: USER
 ```
 
-### USER 2
+> These are development/demo credentials. Change them for any real deployment.
 
-```text
-Username: practice-user-2
-Password: User2@123
-Role: USER
-```
+---
 
-The second USER account is useful for verifying reservation ownership isolation.
-
-## Sample Resources
+# Sample Resources
 
 The application seeds sample resources when the resource table is empty.
 
-Examples:
+Examples include:
 
 ```text
 Meeting Room A
@@ -632,15 +829,17 @@ Company Car
 Developer Laptop
 ```
 
-## Swagger / OpenAPI
+---
 
-Swagger UI is available at:
+# Swagger / OpenAPI
+
+Swagger UI:
 
 ```text
 http://localhost:8080/swagger-ui/index.html
 ```
 
-OpenAPI documentation is available at:
+OpenAPI specification:
 
 ```text
 http://localhost:8080/v3/api-docs
@@ -654,36 +853,54 @@ Bearer <JWT_TOKEN>
 
 This allows protected endpoints to be tested directly through Swagger.
 
-## Testing
+---
 
-The project includes a Spring Boot context test.
+# Testing
+
+The project contains an automated integration/security test suite using:
+
+- Spring Boot Test
+- MockMvc
+- JUnit
+- H2 in-memory database for tests
+
+The test suite covers:
+
+- Application context loading
+- USER login
+- ADMIN login
+- Invalid login credentials
+- Unauthenticated request rejection
+- USER resource access
+- USER resource creation restriction
+- ADMIN resource creation
+- USER booking creation
+- USER booking retrieval
+- Booking ownership isolation
+- USER access restriction for admin endpoints
+- ADMIN booking listing
+- ADMIN booking creation
+- ADMIN booking update
+- ADMIN booking state changes
+- ADMIN booking deletion
+- Invalid booking time
+- Invalid asset ID
+- Booking conflict detection
+- Resource filtering and pagination
+- Admin booking filtering and sorting
+- Invalid pagination
 
 Run:
 
-```powershell
-.\mvnw.cmd clean test
+```cmd
+mvnw.cmd clean test
 ```
 
-The test application uses a separate H2 in-memory database configuration, so the test does not require the local PostgreSQL database.
+The current test suite contains **23 automated tests**, all of which pass in the validated development environment.
 
-The application has also been manually tested for:
+---
 
-- JWT login
-- USER and ADMIN authorization
-- Unauthorized requests
-- Resource CRUD
-- USER resource access restrictions
-- USER booking creation
-- Reservation ownership isolation
-- ADMIN reservation management
-- Reservation filtering
-- Pagination
-- Resource sorting
-- Validation
-- Swagger API access
-- Docker-based application startup
-
-## Security Design
+# Security Design
 
 The application uses:
 
@@ -692,71 +909,178 @@ The application uses:
 - Stateless sessions
 - Spring Security role-based authorization
 - JWT request filtering
+- JWT expiration
+- JWT signature validation
+- JWT secret length validation
 - Custom unauthorized and forbidden responses
 - Reservation ownership checks
 - DTO-based request validation
 
-The security flow is:
+Security flow:
 
 ```text
 Login
-  |
-  v
+   |
+   v
 AuthenticationManager
-  |
-  v
+   |
+   v
 AccountService
-  |
-  v
+   |
+   v
 BCrypt password verification
-  |
-  v
+   |
+   v
 JWT generated
-  |
-  v
+   |
+   v
 Client sends JWT
-  |
-  v
+   |
+   v
 JwtRequestFilter
-  |
-  v
+   |
+   v
 JWT validation
-  |
-  v
+   |
+   v
 SecurityContext
-  |
-  v
+   |
+   v
 Role-based authorization
 ```
 
-## Build
+Invalid or missing authentication results in `401 Unauthorized`.
 
-Build the application using Maven Wrapper:
+Authenticated users without the required role receive `403 Forbidden`.
 
-```powershell
-.\mvnw.cmd clean package
+---
+
+# API Security Example
+
+Without authentication:
+
+```http
+GET /api/assets
 ```
 
-Skip tests if required:
+returns:
 
-```powershell
-.\mvnw.cmd clean package -DskipTests
+```json
+{
+  "status": 401,
+  "error": "Unauthorized",
+  "message": "Authentication is required to access this resource"
+}
 ```
 
-## Docker Image
+With a valid USER JWT:
+
+```http
+GET /api/assets
+Authorization: Bearer <JWT_TOKEN>
+```
+
+the request is authorized.
+
+A USER attempting an ADMIN-only operation receives:
+
+```text
+403 Forbidden
+```
+
+---
+
+# Build and Docker Image
 
 Build the Docker image:
 
-```powershell
+```cmd
 docker build -t booking-system .
 ```
 
-Run the complete environment with:
+Run the complete environment:
 
-```powershell
+```cmd
 docker compose up --build -d
 ```
 
-## License
+Check running containers:
 
-This project was created as a backend development assignment demonstrating REST API development, authentication, authorization, database persistence, validation, testing, and containerization.
+```cmd
+docker compose ps
+```
+
+Stop containers:
+
+```cmd
+docker compose down
+```
+
+---
+
+# Verification
+
+The application has been verified through:
+
+- Automated integration/security tests
+- Maven package build
+- Docker image build
+- Docker Compose startup
+- PostgreSQL health check
+- Swagger UI access
+- JWT login through the running Dockerized application
+- Protected endpoint authorization
+
+Example protected endpoint behavior without a token:
+
+```text
+GET http://localhost:8080/api/assets
+
+401 Unauthorized
+```
+
+Swagger UI is available at:
+
+```text
+http://localhost:8080/swagger-ui/index.html
+```
+
+---
+
+# Design Notes
+
+### Modular monolith
+
+The project intentionally uses a modular monolith architecture rather than multiple microservices because the assignment focuses on a single RESTful booking system.
+
+### DTO-based API
+
+Request and response DTOs keep API contracts separate from persistence entities.
+
+### JWT-based identity
+
+For normal USER booking creation, the authenticated user is derived from the JWT rather than accepting an arbitrary account ID from the client.
+
+### Transactional booking validation
+
+Booking creation and administrator booking updates perform transactional conflict checks to reduce race conditions when reservations overlap.
+
+---
+
+# License
+
+This project was created as a backend development assignment demonstrating:
+
+- REST API development
+- JWT authentication
+- Role-based authorization
+- Database persistence
+- JPA/Hibernate
+- Validation
+- Exception handling
+- Filtering
+- Pagination
+- Sorting
+- Automated testing
+- Docker containerization
+- PostgreSQL integration

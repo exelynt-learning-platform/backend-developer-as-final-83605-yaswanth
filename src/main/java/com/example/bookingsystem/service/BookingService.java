@@ -1,11 +1,22 @@
 package com.example.bookingsystem.service;
 
-import com.example.bookingsystem.dto.*;
-import com.example.bookingsystem.entity.*;
+import com.example.bookingsystem.dto.AdminBookingRequest;
+import com.example.bookingsystem.dto.BookingRequest;
+import com.example.bookingsystem.dto.BookingResponse;
+import com.example.bookingsystem.entity.Account;
+import com.example.bookingsystem.entity.Asset;
+import com.example.bookingsystem.entity.Booking;
+import com.example.bookingsystem.entity.BookingState;
 import com.example.bookingsystem.exception.NotFoundException;
-import com.example.bookingsystem.repository.*;
-import org.springframework.data.domain.*;
+import com.example.bookingsystem.repository.AccountRepository;
+import com.example.bookingsystem.repository.AssetRepository;
+import com.example.bookingsystem.repository.BookingRepository;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Isolation;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
@@ -32,7 +43,7 @@ public class BookingService {
     // USER - CREATE BOOKING
     // =========================================================
 
-    @Transactional
+    @Transactional(isolation = Isolation.SERIALIZABLE)
     public BookingResponse create(
             String username,
             BookingRequest request) {
@@ -50,8 +61,7 @@ public class BookingService {
         validateNoConflict(
                 asset.getId(),
                 request.startAt(),
-                request.endAt(),
-                null);
+                request.endAt());
 
         Booking booking = new Booking();
 
@@ -61,7 +71,7 @@ public class BookingService {
         booking.setEndAt(request.endAt());
         booking.setPrice(asset.getPrice());
 
-        // USER bookings start as PENDING
+        // USER bookings always start as PENDING.
         booking.setState(BookingState.PENDING);
 
         booking.setCreatedAt(LocalDateTime.now());
@@ -74,7 +84,7 @@ public class BookingService {
     // ADMIN - CREATE BOOKING
     // =========================================================
 
-    @Transactional
+    @Transactional(isolation = Isolation.SERIALIZABLE)
     public BookingResponse createByAdmin(
             AdminBookingRequest request) {
 
@@ -93,8 +103,7 @@ public class BookingService {
         validateNoConflict(
                 asset.getId(),
                 request.startAt(),
-                request.endAt(),
-                null);
+                request.endAt());
 
         Booking booking = new Booking();
 
@@ -104,7 +113,7 @@ public class BookingService {
         booking.setEndAt(request.endAt());
         booking.setPrice(asset.getPrice());
 
-        // ADMIN can choose the initial state
+        // ADMIN can choose the initial state.
         booking.setState(request.state());
 
         booking.setCreatedAt(LocalDateTime.now());
@@ -117,7 +126,7 @@ public class BookingService {
     // ADMIN - UPDATE BOOKING
     // =========================================================
 
-    @Transactional
+    @Transactional(isolation = Isolation.SERIALIZABLE)
     public BookingResponse updateByAdmin(
             Long id,
             AdminBookingRequest request) {
@@ -137,7 +146,7 @@ public class BookingService {
         validateAssetAvailable(asset);
 
         /*
-         * Exclude the current booking from the conflict check.
+         * Exclude the booking being updated from the conflict check.
          * Otherwise the booking would conflict with itself.
          */
         validateNoConflict(
@@ -223,14 +232,31 @@ public class BookingService {
             BigDecimal minPrice,
             BigDecimal maxPrice,
             int page,
-            int size) {
+            int size,
+            String sortBy,
+            String direction) {
 
         validatePage(page, size);
+
+        String property = switch (sortBy) {
+            case "id" -> "id";
+            case "startAt" -> "startAt";
+            case "endAt" -> "endAt";
+            case "price" -> "price";
+            case "createdAt" -> "createdAt";
+            case "state" -> "state";
+            default -> throw new IllegalArgumentException(
+                    "Invalid sortBy. Allowed values: id, startAt, endAt, price, createdAt, state");
+        };
+
+        Sort sort = "asc".equalsIgnoreCase(direction)
+                ? Sort.by(property).ascending()
+                : Sort.by(property).descending();
 
         Pageable pageable = PageRequest.of(
                 page,
                 size,
-                Sort.by("createdAt").descending());
+                sort);
 
         return bookingRepository
                 .searchAll(
@@ -278,98 +304,6 @@ public class BookingService {
 
         bookingRepository.delete(
                 getBooking(id));
-    }
-
-
-    @Transactional
-    public BookingResponse createForAdmin(
-            String username,
-            BookingRequest request) {
-
-        if (!request.endAt().isAfter(request.startAt())) {
-            throw new IllegalArgumentException(
-                    "End time must be after start time");
-        }
-
-        Account account = accountRepository.findByUsername(username)
-                .orElseThrow(() ->
-                        new NotFoundException("Account not found"));
-
-        Asset asset = assetRepository.findById(request.assetId())
-                .orElseThrow(() ->
-                        new NotFoundException("Asset not found"));
-
-        if (!asset.isAvailable()) {
-            throw new IllegalArgumentException(
-                    "Asset is currently unavailable");
-        }
-
-        long conflicts = bookingRepository
-                .countByAssetIdAndStateNotAndStartAtLessThanAndEndAtGreaterThan(
-                        asset.getId(),
-                        BookingState.CANCELLED,
-                        request.endAt(),
-                        request.startAt());
-
-        if (conflicts > 0) {
-            throw new IllegalArgumentException(
-                    "Asset is already booked for the selected time");
-        }
-
-        Booking booking = new Booking();
-
-        booking.setAccount(account);
-        booking.setAsset(asset);
-        booking.setStartAt(request.startAt());
-        booking.setEndAt(request.endAt());
-        booking.setPrice(asset.getPrice());
-        booking.setState(BookingState.CONFIRMED);
-        booking.setCreatedAt(LocalDateTime.now());
-
-        return BookingResponse.from(
-                bookingRepository.save(booking));
-    }
-
-    @Transactional
-    public BookingResponse updateForAdmin(
-            Long id,
-            BookingRequest request) {
-
-        if (!request.endAt().isAfter(request.startAt())) {
-            throw new IllegalArgumentException(
-                    "End time must be after start time");
-        }
-
-        Booking booking = getBooking(id);
-
-        Asset asset = assetRepository.findById(request.assetId())
-                .orElseThrow(() ->
-                        new NotFoundException("Asset not found"));
-
-        if (!asset.isAvailable()) {
-            throw new IllegalArgumentException(
-                    "Asset is currently unavailable");
-        }
-
-        long conflicts = bookingRepository
-                .countByAssetIdAndStateNotAndStartAtLessThanAndEndAtGreaterThan(
-                        asset.getId(),
-                        BookingState.CANCELLED,
-                        request.endAt(),
-                        request.startAt());
-
-        if (conflicts > 0) {
-            throw new IllegalArgumentException(
-                    "Asset is already booked for the selected time");
-        }
-
-        booking.setAsset(asset);
-        booking.setStartAt(request.startAt());
-        booking.setEndAt(request.endAt());
-        booking.setPrice(asset.getPrice());
-
-        return BookingResponse.from(
-                bookingRepository.save(booking));
     }
 
     // =========================================================
@@ -426,8 +360,20 @@ public class BookingService {
     }
 
     // =========================================================
-    // VALIDATE BOOKING CONFLICT
+    // VALIDATE BOOKING CONFLICT - CREATE
     // =========================================================
+
+    private void validateNoConflict(
+            Long assetId,
+            LocalDateTime startAt,
+            LocalDateTime endAt) {
+
+        validateNoConflict(
+                assetId,
+                startAt,
+                endAt,
+                null);
+    }
 
     private void validateNoConflict(
             Long assetId,
@@ -435,44 +381,14 @@ public class BookingService {
             LocalDateTime endAt,
             Long excludedBookingId) {
 
-        long conflicts =
-                bookingRepository
-                        .countByAssetIdAndStateNotAndStartAtLessThanAndEndAtGreaterThan(
-                                assetId,
-                                BookingState.CANCELLED,
-                                endAt,
-                                startAt);
-
-        /*
-         * When updating an existing booking, the repository
-         * query also finds the booking being updated.
-         *
-         * Remove that booking from the conflict count.
-         */
-        if (excludedBookingId != null) {
-
-            Booking existing =
-                    bookingRepository
-                            .findById(excludedBookingId)
-                            .orElse(null);
-
-            if (existing != null
-                    && existing.getAsset()
-                    .getId()
-                    .equals(assetId)
-                    && existing.getState()
-                    != BookingState.CANCELLED
-                    && existing.getStartAt()
-                    .isBefore(endAt)
-                    && existing.getEndAt()
-                    .isAfter(startAt)) {
-
-                conflicts--;
-            }
-        }
+        long conflicts = bookingRepository.countConflictingBookings(
+                assetId,
+                BookingState.CANCELLED,
+                startAt,
+                endAt,
+                excludedBookingId);
 
         if (conflicts > 0) {
-
             throw new IllegalArgumentException(
                     "Asset is already booked for the selected time");
         }

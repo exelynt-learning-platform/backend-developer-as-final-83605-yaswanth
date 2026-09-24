@@ -1,8 +1,11 @@
 package com.example.bookingsystem.repository;
 
-import com.example.bookingsystem.entity.*;
-import org.springframework.data.domain.*;
-import org.springframework.data.jpa.repository.*;
+import com.example.bookingsystem.entity.Booking;
+import com.example.bookingsystem.entity.BookingState;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
 import java.math.BigDecimal;
@@ -36,9 +39,19 @@ public interface BookingRepository extends JpaRepository<Booking, Long> {
             @Param("maxPrice") BigDecimal maxPrice,
             Pageable pageable);
 
-    long countByAssetIdAndStateNotAndStartAtLessThanAndEndAtGreaterThan(
-            Long assetId,
-            BookingState excludedState,
-            LocalDateTime endAt,
-            LocalDateTime startAt);
+    @Query("""
+        select count(b)
+        from Booking b
+        where b.asset.id = :assetId
+          and b.state <> :excludedState
+          and b.startAt < :endAt
+          and b.endAt > :startAt
+          and (:excludedBookingId is null or b.id <> :excludedBookingId)
+        """)
+    long countConflictingBookings(
+            @Param("assetId") Long assetId,
+            @Param("excludedState") BookingState excludedState,
+            @Param("startAt") LocalDateTime startAt,
+            @Param("endAt") LocalDateTime endAt,
+            @Param("excludedBookingId") Long excludedBookingId);
 }

@@ -8,6 +8,7 @@ import jakarta.servlet.http.HttpServletResponse;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.core.userdetails.UserDetails;
+import org.springframework.security.core.userdetails.UsernameNotFoundException;
 import org.springframework.security.web.authentication.WebAuthenticationDetailsSource;
 import org.springframework.stereotype.Component;
 import org.springframework.web.filter.OncePerRequestFilter;
@@ -54,21 +55,30 @@ public class JwtRequestFilter extends OncePerRequestFilter {
         if (SecurityContextHolder.getContext()
                 .getAuthentication() == null) {
 
-            UserDetails details =
-                    accountService.loadUserByUsername(username);
+            try {
 
-            UsernamePasswordAuthenticationToken authentication =
-                    new UsernamePasswordAuthenticationToken(
-                            details,
-                            null,
-                            details.getAuthorities());
+                UserDetails details =
+                        accountService.loadUserByUsername(username);
 
-            authentication.setDetails(
-                    new WebAuthenticationDetailsSource()
-                            .buildDetails(request));
+                UsernamePasswordAuthenticationToken authentication =
+                        new UsernamePasswordAuthenticationToken(
+                                details,
+                                null,
+                                details.getAuthorities());
 
-            SecurityContextHolder.getContext()
-                    .setAuthentication(authentication);
+                authentication.setDetails(
+                        new WebAuthenticationDetailsSource()
+                                .buildDetails(request));
+
+                SecurityContextHolder.getContext()
+                        .setAuthentication(authentication);
+
+            } catch (UsernameNotFoundException ex) {
+
+                // Token is valid but the referenced account
+                // no longer exists.
+                SecurityContextHolder.clearContext();
+            }
         }
 
         chain.doFilter(request, response);
