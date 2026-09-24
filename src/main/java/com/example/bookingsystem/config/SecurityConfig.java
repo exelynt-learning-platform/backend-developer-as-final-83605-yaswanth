@@ -174,9 +174,13 @@ public class SecurityConfig {
 
                         // =================================================
                         // EVERYTHING ELSE
+                        //
+                        // Deny-by-default security policy.
+                        // Any endpoint not explicitly configured above
+                        // will be rejected.
                         // =================================================
 
-                        .anyRequest().authenticated()
+                        .anyRequest().denyAll()
                 )
 
                 .exceptionHandling(exception -> exception

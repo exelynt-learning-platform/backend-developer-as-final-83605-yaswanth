@@ -41,18 +41,26 @@ public class JwtRequestFilter extends OncePerRequestFilter {
             FilterChain chain)
             throws ServletException, IOException {
 
-        String header = request.getHeader("Authorization");
+        String header =
+                request.getHeader("Authorization");
 
-        if (header == null || !header.startsWith("Bearer ")) {
+        if (header == null
+                || !header.startsWith("Bearer ")) {
+
             chain.doFilter(request, response);
             return;
         }
 
-        String token = header.substring(7);
+        String token =
+                header.substring(7);
 
         if (!tokenService.valid(token)) {
 
-            LOGGER.debug(
+            /*
+             * Do not log the JWT itself because it is a
+             * sensitive authentication credential.
+             */
+            LOGGER.info(
                     "Invalid JWT received for request: {} {}",
                     request.getMethod(),
                     request.getRequestURI()
@@ -62,7 +70,8 @@ public class JwtRequestFilter extends OncePerRequestFilter {
             return;
         }
 
-        String username = tokenService.username(token);
+        String username =
+                tokenService.username(token);
 
         if (SecurityContextHolder.getContext()
                 .getAuthentication() == null) {
@@ -70,7 +79,8 @@ public class JwtRequestFilter extends OncePerRequestFilter {
             try {
 
                 UserDetails details =
-                        accountService.loadUserByUsername(username);
+                        accountService.loadUserByUsername(
+                                username);
 
                 UsernamePasswordAuthenticationToken authentication =
                         new UsernamePasswordAuthenticationToken(
@@ -87,13 +97,15 @@ public class JwtRequestFilter extends OncePerRequestFilter {
 
             } catch (UsernameNotFoundException ex) {
 
-                LOGGER.debug(
+                LOGGER.info(
                         "JWT references a non-existent account: {}",
                         username
                 );
 
-                // Token is valid but the referenced account
-                // no longer exists.
+                /*
+                 * Token is valid but the referenced account
+                 * no longer exists.
+                 */
                 SecurityContextHolder.clearContext();
             }
         }

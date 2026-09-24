@@ -18,6 +18,15 @@ import java.math.BigDecimal;
 @Profile("!prod & !test")
 public class DataInitializer {
 
+    private static final BigDecimal MEETING_ROOM_PRICE =
+            new BigDecimal("800.00");
+
+    private static final BigDecimal COMPANY_CAR_PRICE =
+            new BigDecimal("2500.00");
+
+    private static final BigDecimal DEVELOPER_LAPTOP_PRICE =
+            new BigDecimal("1200.00");
+
     @Value("${app.seed.admin.username:practice-admin}")
     private String adminUsername;
 
@@ -183,7 +192,7 @@ public class DataInitializer {
         room.setDescription(
                 "Small meeting room with projector"
         );
-        room.setPrice(new BigDecimal("800.00"));
+        room.setPrice(MEETING_ROOM_PRICE);
         room.setAvailable(true);
 
         Asset vehicle = new Asset();
@@ -193,7 +202,7 @@ public class DataInitializer {
         vehicle.setDescription(
                 "Sedan available for business travel"
         );
-        vehicle.setPrice(new BigDecimal("2500.00"));
+        vehicle.setPrice(COMPANY_CAR_PRICE);
         vehicle.setAvailable(true);
 
         Asset laptop = new Asset();
@@ -203,7 +212,7 @@ public class DataInitializer {
         laptop.setDescription(
                 "Laptop available for temporary use"
         );
-        laptop.setPrice(new BigDecimal("1200.00"));
+        laptop.setPrice(DEVELOPER_LAPTOP_PRICE);
         laptop.setAvailable(true);
 
         assetRepository.save(room);

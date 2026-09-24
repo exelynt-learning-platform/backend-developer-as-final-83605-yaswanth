@@ -29,17 +29,20 @@ public class BookingService {
     private final AccountRepository accountRepository;
     private final AssetRepository assetRepository;
     private final PageableFactory pageableFactory;
+    private final BookingAccessPolicy bookingAccessPolicy;
 
     public BookingService(
             BookingRepository bookingRepository,
             AccountRepository accountRepository,
             AssetRepository assetRepository,
-            PageableFactory pageableFactory) {
+            PageableFactory pageableFactory,
+            BookingAccessPolicy bookingAccessPolicy) {
 
         this.bookingRepository = bookingRepository;
         this.accountRepository = accountRepository;
         this.assetRepository = assetRepository;
         this.pageableFactory = pageableFactory;
+        this.bookingAccessPolicy = bookingAccessPolicy;
     }
 
     // =========================================================
@@ -51,11 +54,15 @@ public class BookingService {
             String username,
             BookingRequest request) {
 
-        validateTime(request.startAt(), request.endAt());
+        validateTime(
+                request.startAt(),
+                request.endAt());
 
-        Account account = accountRepository.findByUsername(username)
-                .orElseThrow(() ->
-                        new NotFoundException("Account not found"));
+        Account account =
+                accountRepository.findByUsername(username)
+                        .orElseThrow(() ->
+                                new NotFoundException(
+                                        "Account not found"));
 
         /*
          * Lock the asset row before checking for conflicts.
@@ -63,7 +70,8 @@ public class BookingService {
          * This prevents two concurrent booking transactions
          * from both passing the conflict check for the same asset.
          */
-        Asset asset = getAssetForBooking(request.assetId());
+        Asset asset =
+                getAssetForBooking(request.assetId());
 
         validateAssetAvailable(asset);
 
@@ -73,12 +81,13 @@ public class BookingService {
                 request.endAt(),
                 null);
 
-        Booking booking = buildBooking(
-                account,
-                asset,
-                request.startAt(),
-                request.endAt(),
-                BookingState.PENDING);
+        Booking booking =
+                buildBooking(
+                        account,
+                        asset,
+                        request.startAt(),
+                        request.endAt(),
+                        BookingState.PENDING);
 
         return BookingResponse.from(
                 bookingRepository.save(booking));
@@ -92,18 +101,23 @@ public class BookingService {
     public BookingResponse createByAdmin(
             AdminBookingRequest request) {
 
-        validateTime(request.startAt(), request.endAt());
+        validateTime(
+                request.startAt(),
+                request.endAt());
 
-        Account account = accountRepository.findById(request.accountId())
-                .orElseThrow(() ->
-                        new NotFoundException(
-                                "Account not found: "
-                                        + request.accountId()));
+        Account account =
+                accountRepository.findById(
+                                request.accountId())
+                        .orElseThrow(() ->
+                                new NotFoundException(
+                                        "Account not found: "
+                                                + request.accountId()));
 
         /*
          * Lock the asset before checking availability/conflicts.
          */
-        Asset asset = getAssetForBooking(request.assetId());
+        Asset asset =
+                getAssetForBooking(request.assetId());
 
         validateAssetAvailable(asset);
 
@@ -113,12 +127,13 @@ public class BookingService {
                 request.endAt(),
                 null);
 
-        Booking booking = buildBooking(
-                account,
-                asset,
-                request.startAt(),
-                request.endAt(),
-                request.state());
+        Booking booking =
+                buildBooking(
+                        account,
+                        asset,
+                        request.startAt(),
+                        request.endAt(),
+                        request.state());
 
         return BookingResponse.from(
                 bookingRepository.save(booking));
@@ -133,15 +148,20 @@ public class BookingService {
             Long id,
             AdminBookingRequest request) {
 
-        validateTime(request.startAt(), request.endAt());
+        validateTime(
+                request.startAt(),
+                request.endAt());
 
-        Booking booking = getBooking(id);
+        Booking booking =
+                getBooking(id);
 
-        Account account = accountRepository.findById(request.accountId())
-                .orElseThrow(() ->
-                        new NotFoundException(
-                                "Account not found: "
-                                        + request.accountId()));
+        Account account =
+                accountRepository.findById(
+                                request.accountId())
+                        .orElseThrow(() ->
+                                new NotFoundException(
+                                        "Account not found: "
+                                                + request.accountId()));
 
         /*
          * Lock the target asset before checking for conflicts.
@@ -149,7 +169,8 @@ public class BookingService {
          * The current booking is excluded from the conflict check
          * so that a booking does not conflict with itself.
          */
-        Asset asset = getAssetForBooking(request.assetId());
+        Asset asset =
+                getAssetForBooking(request.assetId());
 
         validateAssetAvailable(asset);
 
@@ -185,22 +206,26 @@ public class BookingService {
             String sortBy,
             String direction) {
 
-        validatePriceRange(minPrice, maxPrice);
+        validatePriceRange(
+                minPrice,
+                maxPrice);
 
-        Pageable pageable = pageableFactory.create(
-                page,
-                size,
-                sortBy,
-                direction,
-                "createdAt",
-                "id",
-                "startAt",
-                "endAt",
-                "price",
-                "createdAt",
-                "state");
+        Pageable pageable =
+                pageableFactory.create(
+                        page,
+                        size,
+                        sortBy,
+                        direction,
+                        "createdAt",
+                        "id",
+                        "startAt",
+                        "endAt",
+                        "price",
+                        "createdAt",
+                        "state");
 
-        return bookingRepository.searchMine(
+        return bookingRepository
+                .searchMine(
                         username,
                         state,
                         minPrice,
@@ -223,22 +248,26 @@ public class BookingService {
             String sortBy,
             String direction) {
 
-        validatePriceRange(minPrice, maxPrice);
+        validatePriceRange(
+                minPrice,
+                maxPrice);
 
-        Pageable pageable = pageableFactory.create(
-                page,
-                size,
-                sortBy,
-                direction,
-                "createdAt",
-                "id",
-                "startAt",
-                "endAt",
-                "price",
-                "createdAt",
-                "state");
+        Pageable pageable =
+                pageableFactory.create(
+                        page,
+                        size,
+                        sortBy,
+                        direction,
+                        "createdAt",
+                        "id",
+                        "startAt",
+                        "endAt",
+                        "price",
+                        "createdAt",
+                        "state");
 
-        return bookingRepository.searchAll(
+        return bookingRepository
+                .searchAll(
                         state,
                         minPrice,
                         maxPrice,
@@ -255,20 +284,17 @@ public class BookingService {
             Long id,
             String username) {
 
-        Booking booking = getBooking(id);
+        Booking booking =
+                getBooking(id);
 
         /*
-         * Deliberately return 404 instead of 403 when the booking
-         * belongs to another user. This prevents leaking whether
-         * another user's booking exists.
+         * Ownership verification is delegated to the access policy.
+         * The policy intentionally returns 404 for another user's
+         * booking to avoid revealing whether it exists.
          */
-        if (!booking.getAccount()
-                .getUsername()
-                .equals(username)) {
-
-            throw new NotFoundException(
-                    "Booking not found");
-        }
+        bookingAccessPolicy.verifyOwner(
+                booking,
+                username);
 
         return BookingResponse.from(booking);
     }
@@ -278,7 +304,8 @@ public class BookingService {
     // =========================================================
 
     @Transactional(readOnly = true)
-    public BookingResponse findAny(Long id) {
+    public BookingResponse findAny(
+            Long id) {
 
         return BookingResponse.from(
                 getBooking(id));
@@ -298,9 +325,11 @@ public class BookingService {
                     "Booking state is required");
         }
 
-        Booking booking = getBooking(id);
+        Booking booking =
+                getBooking(id);
 
-        BookingState currentState = booking.getState();
+        BookingState currentState =
+                booking.getState();
 
         validateStateTransition(
                 currentState,
@@ -313,8 +342,9 @@ public class BookingService {
          */
         if (newState == BookingState.CONFIRMED) {
 
-            Asset asset = getAssetForBooking(
-                    booking.getAsset().getId());
+            Asset asset =
+                    getAssetForBooking(
+                            booking.getAsset().getId());
 
             validateAssetAvailable(asset);
 
@@ -336,9 +366,11 @@ public class BookingService {
     // =========================================================
 
     @Transactional
-    public void remove(Long id) {
+    public void remove(
+            Long id) {
 
-        Booking booking = getBooking(id);
+        Booking booking =
+                getBooking(id);
 
         bookingRepository.delete(booking);
     }
@@ -354,7 +386,8 @@ public class BookingService {
             LocalDateTime endAt,
             BookingState state) {
 
-        Booking booking = new Booking();
+        Booking booking =
+                new Booking();
 
         booking.setAccount(account);
         booking.setAsset(asset);
@@ -379,12 +412,15 @@ public class BookingService {
             LocalDateTime startAt,
             LocalDateTime endAt) {
 
-        if (startAt == null || endAt == null) {
+        if (startAt == null
+                || endAt == null) {
+
             throw new IllegalArgumentException(
                     "Start time and end time are required");
         }
 
         if (!endAt.isAfter(startAt)) {
+
             throw new IllegalArgumentException(
                     "End time must be after start time");
         }
@@ -394,12 +430,16 @@ public class BookingService {
             BigDecimal minPrice,
             BigDecimal maxPrice) {
 
-        if (minPrice != null && minPrice.signum() < 0) {
+        if (minPrice != null
+                && minPrice.signum() < 0) {
+
             throw new IllegalArgumentException(
                     "Minimum price cannot be negative");
         }
 
-        if (maxPrice != null && maxPrice.signum() < 0) {
+        if (maxPrice != null
+                && maxPrice.signum() < 0) {
+
             throw new IllegalArgumentException(
                     "Maximum price cannot be negative");
         }
@@ -417,6 +457,7 @@ public class BookingService {
             Asset asset) {
 
         if (!asset.isAvailable()) {
+
             throw new IllegalArgumentException(
                     "Asset is not available");
         }
@@ -441,6 +482,7 @@ public class BookingService {
                         excludedBookingId);
 
         if (conflicts > 0) {
+
             throw new BookingConflictException(
                     "Asset is already booked for the requested time");
         }
@@ -458,20 +500,22 @@ public class BookingService {
             return;
         }
 
-        boolean valid = switch (currentState) {
+        boolean valid =
+                switch (currentState) {
 
-            case PENDING ->
-                    newState == BookingState.CONFIRMED
-                            || newState == BookingState.CANCELLED;
+                    case PENDING ->
+                            newState == BookingState.CONFIRMED
+                                    || newState == BookingState.CANCELLED;
 
-            case CONFIRMED ->
-                    newState == BookingState.CANCELLED;
+                    case CONFIRMED ->
+                            newState == BookingState.CANCELLED;
 
-            case CANCELLED ->
-                    false;
-        };
+                    case CANCELLED ->
+                            false;
+                };
 
         if (!valid) {
+
             throw new IllegalArgumentException(
                     "Invalid booking state transition from "
                             + currentState
@@ -484,14 +528,17 @@ public class BookingService {
     // HELPERS
     // =========================================================
 
-    private Asset getAsset(Long id) {
+    private Asset getAsset(
+            Long id) {
 
         if (id == null) {
+
             throw new IllegalArgumentException(
                     "Asset ID is required");
         }
 
-        return assetRepository.findById(id)
+        return assetRepository
+                .findById(id)
                 .orElseThrow(() ->
                         new NotFoundException(
                                 "Asset not found: " + id));
@@ -502,27 +549,33 @@ public class BookingService {
      * asset row. This makes the conflict check and subsequent
      * booking save coordinate on the same asset.
      */
-    private Asset getAssetForBooking(Long id) {
+    private Asset getAssetForBooking(
+            Long id) {
 
         if (id == null) {
+
             throw new IllegalArgumentException(
                     "Asset ID is required");
         }
 
-        return assetRepository.findByIdForUpdate(id)
+        return assetRepository
+                .findByIdForUpdate(id)
                 .orElseThrow(() ->
                         new NotFoundException(
                                 "Asset not found: " + id));
     }
 
-    private Booking getBooking(Long id) {
+    private Booking getBooking(
+            Long id) {
 
         if (id == null) {
+
             throw new IllegalArgumentException(
                     "Booking ID is required");
         }
 
-        return bookingRepository.findById(id)
+        return bookingRepository
+                .findById(id)
                 .orElseThrow(() ->
                         new NotFoundException(
                                 "Booking not found: " + id));
