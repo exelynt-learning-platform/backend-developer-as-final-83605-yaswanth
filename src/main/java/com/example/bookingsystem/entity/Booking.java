@@ -4,9 +4,18 @@ import jakarta.persistence.*;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import jakarta.persistence.Index;
 
 @Entity
-@Table(name = "bookings")
+@Table(
+        name = "bookings",
+        indexes = {
+                @Index(name = "idx_booking_asset", columnList = "asset_id"),
+                @Index(name = "idx_booking_state", columnList = "state"),
+                @Index(name = "idx_booking_start_at", columnList = "start_at"),
+                @Index(name = "idx_booking_end_at", columnList = "end_at")
+        }
+)
 public class Booking {
 
     @Id

@@ -5,6 +5,8 @@ import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.core.userdetails.UserDetails;
@@ -17,6 +19,9 @@ import java.io.IOException;
 
 @Component
 public class JwtRequestFilter extends OncePerRequestFilter {
+
+    private static final Logger LOGGER =
+            LoggerFactory.getLogger(JwtRequestFilter.class);
 
     private final JwtTokenService tokenService;
     private final AccountService accountService;
@@ -46,6 +51,13 @@ public class JwtRequestFilter extends OncePerRequestFilter {
         String token = header.substring(7);
 
         if (!tokenService.valid(token)) {
+
+            LOGGER.debug(
+                    "Invalid JWT received for request: {} {}",
+                    request.getMethod(),
+                    request.getRequestURI()
+            );
+
             chain.doFilter(request, response);
             return;
         }
@@ -74,6 +86,11 @@ public class JwtRequestFilter extends OncePerRequestFilter {
                         .setAuthentication(authentication);
 
             } catch (UsernameNotFoundException ex) {
+
+                LOGGER.debug(
+                        "JWT references a non-existent account: {}",
+                        username
+                );
 
                 // Token is valid but the referenced account
                 // no longer exists.

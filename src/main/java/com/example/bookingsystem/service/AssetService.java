@@ -4,7 +4,9 @@ import com.example.bookingsystem.dto.*;
 import com.example.bookingsystem.entity.Asset;
 import com.example.bookingsystem.exception.NotFoundException;
 import com.example.bookingsystem.repository.AssetRepository;
-import org.springframework.data.domain.*;
+import com.example.bookingsystem.util.PageableFactory;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 
 import java.math.BigDecimal;
@@ -13,9 +15,14 @@ import java.math.BigDecimal;
 public class AssetService {
 
     private final AssetRepository assetRepository;
+    private final PageableFactory pageableFactory;
 
-    public AssetService(AssetRepository assetRepository) {
+    public AssetService(
+            AssetRepository assetRepository,
+            PageableFactory pageableFactory) {
+
         this.assetRepository = assetRepository;
+        this.pageableFactory = pageableFactory;
     }
 
     public Page<AssetResponse> find(
@@ -30,12 +37,16 @@ public class AssetService {
 
         validatePriceRange(minPrice, maxPrice);
 
-        Pageable pageable =
-                createPageable(
-                        page,
-                        size,
-                        sortBy,
-                        direction);
+        Pageable pageable = pageableFactory.create(
+                page,
+                size,
+                sortBy,
+                direction,
+                "id",
+                "id",
+                "name",
+                "price",
+                "category");
 
         return assetRepository
                 .search(
@@ -107,36 +118,5 @@ public class AssetService {
             throw new IllegalArgumentException(
                     "minPrice cannot be greater than maxPrice");
         }
-    }
-
-    private Pageable createPageable(
-            int page,
-            int size,
-            String sortBy,
-            String direction) {
-
-        if (page < 0 || size < 1 || size > 100) {
-
-            throw new IllegalArgumentException(
-                    "Invalid page or size");
-        }
-
-        String property = switch (sortBy) {
-            case "name" -> "name";
-            case "price" -> "price";
-            case "category" -> "category";
-            case "id" -> "id";
-            default -> "id";
-        };
-
-        Sort sort =
-                "desc".equalsIgnoreCase(direction)
-                        ? Sort.by(property).descending()
-                        : Sort.by(property).ascending();
-
-        return PageRequest.of(
-                page,
-                size,
-                sort);
     }
 }

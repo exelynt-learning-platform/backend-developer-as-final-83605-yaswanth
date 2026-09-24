@@ -12,10 +12,9 @@ import com.example.bookingsystem.exception.NotFoundException;
 import com.example.bookingsystem.repository.AccountRepository;
 import com.example.bookingsystem.repository.AssetRepository;
 import com.example.bookingsystem.repository.BookingRepository;
+import com.example.bookingsystem.util.PageableFactory;
 import org.springframework.data.domain.Page;
-import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
-import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Isolation;
 import org.springframework.transaction.annotation.Transactional;
@@ -29,15 +28,18 @@ public class BookingService {
     private final BookingRepository bookingRepository;
     private final AccountRepository accountRepository;
     private final AssetRepository assetRepository;
+    private final PageableFactory pageableFactory;
 
     public BookingService(
             BookingRepository bookingRepository,
             AccountRepository accountRepository,
-            AssetRepository assetRepository) {
+            AssetRepository assetRepository,
+            PageableFactory pageableFactory) {
 
         this.bookingRepository = bookingRepository;
         this.accountRepository = accountRepository;
         this.assetRepository = assetRepository;
+        this.pageableFactory = pageableFactory;
     }
 
     // =========================================================
@@ -55,7 +57,13 @@ public class BookingService {
                 .orElseThrow(() ->
                         new NotFoundException("Account not found"));
 
-        Asset asset = getAsset(request.assetId());
+        /*
+         * Lock the asset row before checking for conflicts.
+         *
+         * This prevents two concurrent booking transactions
+         * from both passing the conflict check for the same asset.
+         */
+        Asset asset = getAssetForBooking(request.assetId());
 
         validateAssetAvailable(asset);
 
@@ -63,20 +71,17 @@ public class BookingService {
                 asset.getId(),
                 request.startAt(),
                 request.endAt(),
-                null
-        );
+                null);
 
         Booking booking = buildBooking(
                 account,
                 asset,
                 request.startAt(),
                 request.endAt(),
-                BookingState.PENDING
-        );
+                BookingState.PENDING);
 
         return BookingResponse.from(
-                bookingRepository.save(booking)
-        );
+                bookingRepository.save(booking));
     }
 
     // =========================================================
@@ -95,7 +100,10 @@ public class BookingService {
                                 "Account not found: "
                                         + request.accountId()));
 
-        Asset asset = getAsset(request.assetId());
+        /*
+         * Lock the asset before checking availability/conflicts.
+         */
+        Asset asset = getAssetForBooking(request.assetId());
 
         validateAssetAvailable(asset);
 
@@ -103,20 +111,17 @@ public class BookingService {
                 asset.getId(),
                 request.startAt(),
                 request.endAt(),
-                null
-        );
+                null);
 
         Booking booking = buildBooking(
                 account,
                 asset,
                 request.startAt(),
                 request.endAt(),
-                request.state()
-        );
+                request.state());
 
         return BookingResponse.from(
-                bookingRepository.save(booking)
-        );
+                bookingRepository.save(booking));
     }
 
     // =========================================================
@@ -138,7 +143,13 @@ public class BookingService {
                                 "Account not found: "
                                         + request.accountId()));
 
-        Asset asset = getAsset(request.assetId());
+        /*
+         * Lock the target asset before checking for conflicts.
+         *
+         * The current booking is excluded from the conflict check
+         * so that a booking does not conflict with itself.
+         */
+        Asset asset = getAssetForBooking(request.assetId());
 
         validateAssetAvailable(asset);
 
@@ -146,8 +157,7 @@ public class BookingService {
                 asset.getId(),
                 request.startAt(),
                 request.endAt(),
-                id
-        );
+                id);
 
         booking.setAccount(account);
         booking.setAsset(asset);
@@ -157,8 +167,7 @@ public class BookingService {
         booking.setState(request.state());
 
         return BookingResponse.from(
-                bookingRepository.save(booking)
-        );
+                bookingRepository.save(booking));
     }
 
     // =========================================================
@@ -178,12 +187,18 @@ public class BookingService {
 
         validatePriceRange(minPrice, maxPrice);
 
-        Pageable pageable = createPageable(
+        Pageable pageable = pageableFactory.create(
                 page,
                 size,
                 sortBy,
-                direction
-        );
+                direction,
+                "createdAt",
+                "id",
+                "startAt",
+                "endAt",
+                "price",
+                "createdAt",
+                "state");
 
         return bookingRepository.searchMine(
                         username,
@@ -210,12 +225,18 @@ public class BookingService {
 
         validatePriceRange(minPrice, maxPrice);
 
-        Pageable pageable = createPageable(
+        Pageable pageable = pageableFactory.create(
                 page,
                 size,
                 sortBy,
-                direction
-        );
+                direction,
+                "createdAt",
+                "id",
+                "startAt",
+                "endAt",
+                "price",
+                "createdAt",
+                "state");
 
         return bookingRepository.searchAll(
                         state,
@@ -236,7 +257,15 @@ public class BookingService {
 
         Booking booking = getBooking(id);
 
-        if (!booking.getAccount().getUsername().equals(username)) {
+        /*
+         * Deliberately return 404 instead of 403 when the booking
+         * belongs to another user. This prevents leaking whether
+         * another user's booking exists.
+         */
+        if (!booking.getAccount()
+                .getUsername()
+                .equals(username)) {
+
             throw new NotFoundException(
                     "Booking not found");
         }
@@ -275,32 +304,31 @@ public class BookingService {
 
         validateStateTransition(
                 currentState,
-                newState
-        );
+                newState);
 
         /*
          * A booking becomes an active reservation when it is
-         * confirmed. Before confirming, verify that no other
-         * active booking occupies the same time range.
+         * confirmed. Lock the asset before checking availability
+         * and overlapping bookings.
          */
         if (newState == BookingState.CONFIRMED) {
 
-            validateAssetAvailable(
-                    booking.getAsset());
+            Asset asset = getAssetForBooking(
+                    booking.getAsset().getId());
+
+            validateAssetAvailable(asset);
 
             validateNoConflict(
-                    booking.getAsset().getId(),
+                    asset.getId(),
                     booking.getStartAt(),
                     booking.getEndAt(),
-                    booking.getId()
-            );
+                    booking.getId());
         }
 
         booking.setState(newState);
 
         return BookingResponse.from(
-                bookingRepository.save(booking)
-        );
+                bookingRepository.save(booking));
     }
 
     // =========================================================
@@ -385,13 +413,18 @@ public class BookingService {
         }
     }
 
-    private void validateAssetAvailable(Asset asset) {
+    private void validateAssetAvailable(
+            Asset asset) {
 
         if (!asset.isAvailable()) {
             throw new IllegalArgumentException(
                     "Asset is not available");
         }
     }
+
+    // =========================================================
+    // VALIDATE BOOKING CONFLICT
+    // =========================================================
 
     private void validateNoConflict(
             Long assetId,
@@ -405,8 +438,7 @@ public class BookingService {
                         startAt,
                         endAt,
                         BookingState.CANCELLED,
-                        excludedBookingId
-                );
+                        excludedBookingId);
 
         if (conflicts > 0) {
             throw new BookingConflictException(
@@ -449,77 +481,6 @@ public class BookingService {
     }
 
     // =========================================================
-    // PAGINATION AND SORTING
-    // =========================================================
-
-    private Pageable createPageable(
-            int page,
-            int size,
-            String sortBy,
-            String direction) {
-
-        validatePage(page, size);
-
-        String property = validateSortProperty(sortBy);
-
-        if (!"asc".equalsIgnoreCase(direction)
-                && !"desc".equalsIgnoreCase(direction)) {
-
-            throw new IllegalArgumentException(
-                    "Sort direction must be 'asc' or 'desc'");
-        }
-
-        Sort sort;
-
-        if ("asc".equalsIgnoreCase(direction)) {
-            sort = Sort.by(property).ascending();
-        } else {
-            sort = Sort.by(property).descending();
-        }
-
-        return PageRequest.of(
-                page,
-                size,
-                sort
-        );
-    }
-
-    private String validateSortProperty(String sortBy) {
-
-        if (sortBy == null || sortBy.isBlank()) {
-            return "createdAt";
-        }
-
-        return switch (sortBy) {
-
-            case "id" -> "id";
-            case "startAt" -> "startAt";
-            case "endAt" -> "endAt";
-            case "price" -> "price";
-            case "createdAt" -> "createdAt";
-            case "state" -> "state";
-
-            default -> throw new IllegalArgumentException(
-                    "Invalid sort field: " + sortBy);
-        };
-    }
-
-    private void validatePage(
-            int page,
-            int size) {
-
-        if (page < 0) {
-            throw new IllegalArgumentException(
-                    "Page must be greater than or equal to 0");
-        }
-
-        if (size < 1 || size > 100) {
-            throw new IllegalArgumentException(
-                    "Size must be between 1 and 100");
-        }
-    }
-
-    // =========================================================
     // HELPERS
     // =========================================================
 
@@ -531,6 +492,24 @@ public class BookingService {
         }
 
         return assetRepository.findById(id)
+                .orElseThrow(() ->
+                        new NotFoundException(
+                                "Asset not found: " + id));
+    }
+
+    /*
+     * Booking operations use a pessimistic write lock on the
+     * asset row. This makes the conflict check and subsequent
+     * booking save coordinate on the same asset.
+     */
+    private Asset getAssetForBooking(Long id) {
+
+        if (id == null) {
+            throw new IllegalArgumentException(
+                    "Asset ID is required");
+        }
+
+        return assetRepository.findByIdForUpdate(id)
                 .orElseThrow(() ->
                         new NotFoundException(
                                 "Asset not found: " + id));

@@ -1,11 +1,13 @@
 package com.example.bookingsystem.controller;
 
-import com.example.bookingsystem.dto.*;
+import com.example.bookingsystem.dto.LoginRequest;
+import com.example.bookingsystem.dto.LoginResponse;
 import com.example.bookingsystem.entity.Account;
-import com.example.bookingsystem.repository.AccountRepository;
 import com.example.bookingsystem.security.JwtTokenService;
+import com.example.bookingsystem.service.AccountService;
 import jakarta.validation.Valid;
-import org.springframework.security.authentication.*;
+import org.springframework.security.authentication.AuthenticationManager;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.web.bind.annotation.*;
 
 @RestController
@@ -13,16 +15,16 @@ import org.springframework.web.bind.annotation.*;
 public class AuthController {
 
     private final AuthenticationManager authenticationManager;
-    private final AccountRepository accountRepository;
+    private final AccountService accountService;
     private final JwtTokenService tokenService;
 
     public AuthController(
             AuthenticationManager authenticationManager,
-            AccountRepository accountRepository,
+            AccountService accountService,
             JwtTokenService tokenService) {
 
         this.authenticationManager = authenticationManager;
-        this.accountRepository = accountRepository;
+        this.accountService = accountService;
         this.tokenService = tokenService;
     }
 
@@ -36,11 +38,7 @@ public class AuthController {
                         request.password()));
 
         Account account =
-                accountRepository
-                        .findByUsername(request.username())
-                        .orElseThrow(() ->
-                                new IllegalStateException(
-                                        "Authenticated account no longer exists"));
+                accountService.getByUsername(request.username());
 
         String token =
                 tokenService.create(

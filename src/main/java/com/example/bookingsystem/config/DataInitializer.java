@@ -51,6 +51,8 @@ public class DataInitializer {
             AssetRepository assetRepository,
             PasswordEncoder passwordEncoder) {
 
+        validateSeedPasswords();
+
         return args -> {
 
             createAdminIfMissing(
@@ -72,6 +74,36 @@ public class DataInitializer {
                     assetRepository
             );
         };
+    }
+
+    private void validateSeedPasswords() {
+
+        validatePassword(
+                "SEED_ADMIN_PASSWORD",
+                adminPassword
+        );
+
+        validatePassword(
+                "SEED_USER_PASSWORD",
+                userPassword
+        );
+
+        validatePassword(
+                "SEED_USER2_PASSWORD",
+                user2Password
+        );
+    }
+
+    private void validatePassword(
+            String environmentVariable,
+            String password) {
+
+        if (password == null || password.isBlank()) {
+            throw new IllegalStateException(
+                    environmentVariable
+                            + " must be configured and must not be blank"
+            );
+        }
     }
 
     private void createAdminIfMissing(

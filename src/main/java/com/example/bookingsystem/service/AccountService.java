@@ -18,9 +18,7 @@ public class AccountService implements UserDetailsService {
     public UserDetails loadUserByUsername(String username)
             throws UsernameNotFoundException {
 
-        Account account = accountRepository.findByUsername(username)
-                .orElseThrow(() ->
-                        new UsernameNotFoundException("Account not found"));
+        Account account = getByUsername(username);
 
         return User.builder()
                 .username(account.getUsername())
@@ -28,5 +26,12 @@ public class AccountService implements UserDetailsService {
                 .roles(account.getAccessLevel().name())
                 .disabled(!account.isEnabled())
                 .build();
+    }
+
+    public Account getByUsername(String username) {
+
+        return accountRepository.findByUsername(username)
+                .orElseThrow(() ->
+                        new UsernameNotFoundException("Account not found"));
     }
 }

@@ -1,9 +1,12 @@
 package com.example.bookingsystem.config;
 
+import com.example.bookingsystem.security.JwtRequestFilter;
+import com.example.bookingsystem.service.AccountService;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.servlet.http.HttpServletResponse;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.http.HttpMethod;
 import org.springframework.http.MediaType;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.AuthenticationProvider;
@@ -16,9 +19,6 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 
-import com.example.bookingsystem.security.JwtRequestFilter;
-import com.example.bookingsystem.service.AccountService;
-
 import java.io.IOException;
 import java.time.LocalDateTime;
 import java.util.LinkedHashMap;
@@ -26,6 +26,15 @@ import java.util.Map;
 
 @Configuration
 public class SecurityConfig {
+
+    private static final String BOOKING_BASE_PATH =
+            "/api/bookings";
+
+    private static final String MY_BOOKINGS_PATH =
+            "/api/bookings/my";
+
+    private static final String BOOKING_BY_ID_PATH =
+            "/api/bookings/*";
 
     private final JwtRequestFilter jwtRequestFilter;
     private final AccountService accountService;
@@ -79,63 +88,94 @@ public class SecurityConfig {
 
                 .authorizeHttpRequests(auth -> auth
 
-                        // Authentication
+                        // =================================================
+                        // AUTHENTICATION
+                        // =================================================
+
                         .requestMatchers(
                                 "/auth/login"
                         ).permitAll()
 
-                        // Swagger / OpenAPI
+                        // =================================================
+                        // SWAGGER / OPENAPI
+                        // =================================================
+
                         .requestMatchers(
                                 "/swagger-ui/**",
                                 "/swagger-ui.html",
                                 "/v3/api-docs/**"
                         ).permitAll()
 
-                        // Public resource viewing
+                        // =================================================
+                        // USER + ADMIN - VIEW RESOURCES
+                        // =================================================
+
                         .requestMatchers(
-                                org.springframework.http.HttpMethod.GET,
+                                HttpMethod.GET,
                                 "/api/assets/**"
                         ).hasAnyRole("USER", "ADMIN")
 
-                        // ADMIN resource management
+                        // =================================================
+                        // ADMIN - RESOURCE MANAGEMENT
+                        // =================================================
+
                         .requestMatchers(
-                                org.springframework.http.HttpMethod.POST,
+                                HttpMethod.POST,
                                 "/api/assets/**"
                         ).hasRole("ADMIN")
 
                         .requestMatchers(
-                                org.springframework.http.HttpMethod.PUT,
+                                HttpMethod.PUT,
                                 "/api/assets/**"
                         ).hasRole("ADMIN")
 
                         .requestMatchers(
-                                org.springframework.http.HttpMethod.DELETE,
+                                HttpMethod.DELETE,
                                 "/api/assets/**"
                         ).hasRole("ADMIN")
 
-                        // USER booking creation
-                        .requestMatchers(
-                                org.springframework.http.HttpMethod.POST,
-                                "/api/bookings"
-                        ).hasRole("USER")
-
-                        // USER own bookings
-                        .requestMatchers(
-                                org.springframework.http.HttpMethod.GET,
-                                "/api/bookings/my"
-                        ).hasRole("USER")
+                        // =================================================
+                        // USER - CREATE BOOKING
+                        // =================================================
 
                         .requestMatchers(
-                                org.springframework.http.HttpMethod.GET,
-                                "/api/bookings/*"
+                                HttpMethod.POST,
+                                BOOKING_BASE_PATH
                         ).hasRole("USER")
 
-                        // ADMIN booking management
+                        // =================================================
+                        // USER - VIEW OWN BOOKINGS
+                        // =================================================
+
+                        .requestMatchers(
+                                HttpMethod.GET,
+                                MY_BOOKINGS_PATH
+                        ).hasRole("USER")
+
+                        // =================================================
+                        // USER - VIEW INDIVIDUAL OWN BOOKING
+                        //
+                        // BookingService verifies ownership using the
+                        // authenticated user's identity.
+                        // =================================================
+
+                        .requestMatchers(
+                                HttpMethod.GET,
+                                BOOKING_BY_ID_PATH
+                        ).hasRole("USER")
+
+                        // =================================================
+                        // ADMIN - BOOKING MANAGEMENT
+                        // =================================================
+
                         .requestMatchers(
                                 "/api/admin/bookings/**"
                         ).hasRole("ADMIN")
 
-                        // Everything else requires authentication
+                        // =================================================
+                        // EVERYTHING ELSE
+                        // =================================================
+
                         .anyRequest().authenticated()
                 )
 
@@ -189,6 +229,7 @@ public class SecurityConfig {
                 String message) throws IOException {
 
             response.setStatus(status);
+
             response.setContentType(
                     MediaType.APPLICATION_JSON_VALUE);
 
