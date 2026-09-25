@@ -30,19 +30,22 @@ public class BookingService {
     private final AssetRepository assetRepository;
     private final PageableFactory pageableFactory;
     private final BookingAccessPolicy bookingAccessPolicy;
+    private final BookingStateMachine bookingStateMachine;
 
     public BookingService(
             BookingRepository bookingRepository,
             AccountRepository accountRepository,
             AssetRepository assetRepository,
             PageableFactory pageableFactory,
-            BookingAccessPolicy bookingAccessPolicy) {
+            BookingAccessPolicy bookingAccessPolicy,
+            BookingStateMachine bookingStateMachine) {
 
         this.bookingRepository = bookingRepository;
         this.accountRepository = accountRepository;
         this.assetRepository = assetRepository;
         this.pageableFactory = pageableFactory;
         this.bookingAccessPolicy = bookingAccessPolicy;
+        this.bookingStateMachine = bookingStateMachine;
     }
 
     // =========================================================
@@ -331,7 +334,11 @@ public class BookingService {
         BookingState currentState =
                 booking.getState();
 
-        validateStateTransition(
+        /*
+         * State transition rules are handled by the dedicated
+         * BookingStateMachine instead of this service.
+         */
+        bookingStateMachine.validateTransition(
                 currentState,
                 newState);
 
@@ -485,42 +492,6 @@ public class BookingService {
 
             throw new BookingConflictException(
                     "Asset is already booked for the requested time");
-        }
-    }
-
-    // =========================================================
-    // STATE TRANSITIONS
-    // =========================================================
-
-    private void validateStateTransition(
-            BookingState currentState,
-            BookingState newState) {
-
-        if (currentState == newState) {
-            return;
-        }
-
-        boolean valid =
-                switch (currentState) {
-
-                    case PENDING ->
-                            newState == BookingState.CONFIRMED
-                                    || newState == BookingState.CANCELLED;
-
-                    case CONFIRMED ->
-                            newState == BookingState.CANCELLED;
-
-                    case CANCELLED ->
-                            false;
-                };
-
-        if (!valid) {
-
-            throw new IllegalArgumentException(
-                    "Invalid booking state transition from "
-                            + currentState
-                            + " to "
-                            + newState);
         }
     }
 

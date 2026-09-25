@@ -5,8 +5,6 @@ import com.example.bookingsystem.entity.Account;
 import com.example.bookingsystem.entity.Asset;
 import com.example.bookingsystem.repository.AccountRepository;
 import com.example.bookingsystem.repository.AssetRepository;
-import org.springframework.beans.factory.annotation.Value;
-import org.springframework.boot.CommandLineRunner;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Profile;
@@ -15,92 +13,154 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import java.math.BigDecimal;
 
 @Configuration
-@Profile("!prod & !test")
+@Profile("seed")
 public class DataInitializer {
 
-    private static final BigDecimal MEETING_ROOM_PRICE =
-            new BigDecimal("800.00");
+    private final AccountRepository accountRepository;
+    private final AssetRepository assetRepository;
+    private final PasswordEncoder passwordEncoder;
 
-    private static final BigDecimal COMPANY_CAR_PRICE =
-            new BigDecimal("2500.00");
-
-    private static final BigDecimal DEVELOPER_LAPTOP_PRICE =
-            new BigDecimal("1200.00");
-
-    @Value("${app.seed.admin.username:practice-admin}")
-    private String adminUsername;
-
-    @Value("${app.seed.admin.email:practice-admin@example.com}")
-    private String adminEmail;
-
-    @Value("${app.seed.admin.password}")
-    private String adminPassword;
-
-    @Value("${app.seed.user.username:practice-user}")
-    private String userUsername;
-
-    @Value("${app.seed.user.email:practice-user@example.com}")
-    private String userEmail;
-
-    @Value("${app.seed.user.password}")
-    private String userPassword;
-
-    @Value("${app.seed.user2.username:practice-user-2}")
-    private String user2Username;
-
-    @Value("${app.seed.user2.email:practice-user-2@example.com}")
-    private String user2Email;
-
-    @Value("${app.seed.user2.password}")
-    private String user2Password;
-
-    @Bean
-    CommandLineRunner loadInitialData(
+    public DataInitializer(
             AccountRepository accountRepository,
             AssetRepository assetRepository,
             PasswordEncoder passwordEncoder) {
 
-        validateSeedPasswords();
+        this.accountRepository = accountRepository;
+        this.assetRepository = assetRepository;
+        this.passwordEncoder = passwordEncoder;
+    }
+
+    @Bean
+    public org.springframework.boot.CommandLineRunner seedData() {
 
         return args -> {
 
-            createAdminIfMissing(
-                    accountRepository,
-                    passwordEncoder
+            validatePassword(
+                    "SEED_ADMIN_PASSWORD",
+                    System.getenv("SEED_ADMIN_PASSWORD")
             );
 
-            createUserIfMissing(
-                    accountRepository,
-                    passwordEncoder
+            validatePassword(
+                    "SEED_USER_PASSWORD",
+                    System.getenv("SEED_USER_PASSWORD")
             );
 
-            createSecondUserIfMissing(
-                    accountRepository,
-                    passwordEncoder
+            validatePassword(
+                    "SEED_USER2_PASSWORD",
+                    System.getenv("SEED_USER2_PASSWORD")
             );
 
-            createSampleAssetsIfEmpty(
-                    assetRepository
-            );
+            createAccounts();
+            createAssets();
         };
     }
 
-    private void validateSeedPasswords() {
+    private void createAccounts() {
 
-        validatePassword(
-                "SEED_ADMIN_PASSWORD",
-                adminPassword
+        createAccount(
+                System.getenv("SEED_ADMIN_USERNAME"),
+                System.getenv("SEED_ADMIN_EMAIL"),
+                System.getenv("SEED_ADMIN_PASSWORD"),
+                AccessLevel.ADMIN
         );
 
-        validatePassword(
-                "SEED_USER_PASSWORD",
-                userPassword
+        createAccount(
+                System.getenv("SEED_USER_USERNAME"),
+                System.getenv("SEED_USER_EMAIL"),
+                System.getenv("SEED_USER_PASSWORD"),
+                AccessLevel.USER
         );
 
-        validatePassword(
-                "SEED_USER2_PASSWORD",
-                user2Password
+        createAccount(
+                System.getenv("SEED_USER2_USERNAME"),
+                System.getenv("SEED_USER2_EMAIL"),
+                System.getenv("SEED_USER2_PASSWORD"),
+                AccessLevel.USER
         );
+    }
+
+    private void createAccount(
+            String username,
+            String email,
+            String password,
+            AccessLevel accessLevel) {
+
+        if (username == null || username.isBlank()) {
+            throw new IllegalStateException(
+                    "Seed username is required"
+            );
+        }
+
+        if (email == null || email.isBlank()) {
+            throw new IllegalStateException(
+                    "Seed email is required for " + username
+            );
+        }
+
+        if (password == null || password.isBlank()) {
+            throw new IllegalStateException(
+                    "Seed password is required for " + username
+            );
+        }
+
+        if (accountRepository.findByUsername(username).isPresent()) {
+            return;
+        }
+
+        Account account = new Account();
+
+        account.setUsername(username);
+        account.setEmail(email);
+        account.setPasswordHash(
+                passwordEncoder.encode(password)
+        );
+        account.setAccessLevel(accessLevel);
+        account.setEnabled(true);
+
+        accountRepository.save(account);
+    }
+
+    private void createAssets() {
+
+        if (assetRepository.count() > 0) {
+            return;
+        }
+
+        Asset meetingRoom = new Asset();
+
+        meetingRoom.setName("Conference Room A");
+        meetingRoom.setCategory("ROOM");
+        meetingRoom.setDescription(
+                "A medium-sized conference room suitable for meetings."
+        );
+        meetingRoom.setPrice(new BigDecimal("500.00"));
+        meetingRoom.setAvailable(true);
+
+        assetRepository.save(meetingRoom);
+
+        Asset trainingRoom = new Asset();
+
+        trainingRoom.setName("Training Room");
+        trainingRoom.setCategory("ROOM");
+        trainingRoom.setDescription(
+                "Training room suitable for workshops and team sessions."
+        );
+        trainingRoom.setPrice(new BigDecimal("800.00"));
+        trainingRoom.setAvailable(true);
+
+        assetRepository.save(trainingRoom);
+
+        Asset laptop = new Asset();
+
+        laptop.setName("Development Laptop");
+        laptop.setCategory("EQUIPMENT");
+        laptop.setDescription(
+                "Laptop available for development and testing purposes."
+        );
+        laptop.setPrice(new BigDecimal("1200.00"));
+        laptop.setAvailable(true);
+
+        assetRepository.save(laptop);
     }
 
     private void validatePassword(
@@ -109,114 +169,43 @@ public class DataInitializer {
 
         if (password == null || password.isBlank()) {
             throw new IllegalStateException(
-                    environmentVariable
-                            + " must be configured and must not be blank"
+                    environmentVariable + " must be configured"
             );
         }
-    }
 
-    private void createAdminIfMissing(
-            AccountRepository accountRepository,
-            PasswordEncoder passwordEncoder) {
-
-        if (accountRepository.existsByUsername(adminUsername)) {
-            return;
+        if (password.length() < 12) {
+            throw new IllegalStateException(
+                    environmentVariable
+                            + " must contain at least 12 characters"
+            );
         }
 
-        Account admin = new Account();
-
-        admin.setUsername(adminUsername);
-        admin.setEmail(adminEmail);
-        admin.setPasswordHash(
-                passwordEncoder.encode(adminPassword)
-        );
-        admin.setAccessLevel(AccessLevel.ADMIN);
-        admin.setEnabled(true);
-
-        accountRepository.save(admin);
-    }
-
-    private void createUserIfMissing(
-            AccountRepository accountRepository,
-            PasswordEncoder passwordEncoder) {
-
-        if (accountRepository.existsByUsername(userUsername)) {
-            return;
+        if (!password.matches(".*[A-Z].*")) {
+            throw new IllegalStateException(
+                    environmentVariable
+                            + " must contain at least one uppercase letter"
+            );
         }
 
-        Account user = new Account();
-
-        user.setUsername(userUsername);
-        user.setEmail(userEmail);
-        user.setPasswordHash(
-                passwordEncoder.encode(userPassword)
-        );
-        user.setAccessLevel(AccessLevel.USER);
-        user.setEnabled(true);
-
-        accountRepository.save(user);
-    }
-
-    private void createSecondUserIfMissing(
-            AccountRepository accountRepository,
-            PasswordEncoder passwordEncoder) {
-
-        if (accountRepository.existsByUsername(user2Username)) {
-            return;
+        if (!password.matches(".*[a-z].*")) {
+            throw new IllegalStateException(
+                    environmentVariable
+                            + " must contain at least one lowercase letter"
+            );
         }
 
-        Account user = new Account();
-
-        user.setUsername(user2Username);
-        user.setEmail(user2Email);
-        user.setPasswordHash(
-                passwordEncoder.encode(user2Password)
-        );
-        user.setAccessLevel(AccessLevel.USER);
-        user.setEnabled(true);
-
-        accountRepository.save(user);
-    }
-
-    private void createSampleAssetsIfEmpty(
-            AssetRepository assetRepository) {
-
-        if (assetRepository.count() > 0) {
-            return;
+        if (!password.matches(".*\\d.*")) {
+            throw new IllegalStateException(
+                    environmentVariable
+                            + " must contain at least one digit"
+            );
         }
 
-        Asset room = new Asset();
-
-        room.setName("Meeting Room A");
-        room.setCategory("ROOM");
-        room.setDescription(
-                "Small meeting room with projector"
-        );
-        room.setPrice(MEETING_ROOM_PRICE);
-        room.setAvailable(true);
-
-        Asset vehicle = new Asset();
-
-        vehicle.setName("Company Car");
-        vehicle.setCategory("VEHICLE");
-        vehicle.setDescription(
-                "Sedan available for business travel"
-        );
-        vehicle.setPrice(COMPANY_CAR_PRICE);
-        vehicle.setAvailable(true);
-
-        Asset laptop = new Asset();
-
-        laptop.setName("Developer Laptop");
-        laptop.setCategory("EQUIPMENT");
-        laptop.setDescription(
-                "Laptop available for temporary use"
-        );
-        laptop.setPrice(DEVELOPER_LAPTOP_PRICE);
-        laptop.setAvailable(true);
-
-        assetRepository.save(room);
-        assetRepository.save(vehicle);
-        assetRepository.save(laptop);
+        if (!password.matches(".*[^a-zA-Z0-9].*")) {
+            throw new IllegalStateException(
+                    environmentVariable
+                            + " must contain at least one special character"
+            );
+        }
     }
 }
